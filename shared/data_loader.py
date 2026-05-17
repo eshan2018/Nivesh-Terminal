@@ -324,49 +324,18 @@ def load_market_data(
             if not w.empty and "Close" in w.columns:
                 weekly_closes[t] = _extract_close(w)
 
-    # ── India: NSE primary → batch yfinance fallback ──────────────────────
+    # ── India: Use yfinance for speed (NSE is too slow for bulk requests) ──
     else:
-        # Separate index tickers (^NSEI, ^BSESN) from regular equities
-        index_tickers = [t for t in tickers if t.startswith("^")]   # Indices use yfinance
-        nse_tickers   = [t for t in tickers if not t.startswith("^")]  # Equities try NSE first
+        # Batch yfinance call for all tickers (both indices and equities)
+        # This is ~100x faster than trying NSE sequentially
+        yf_d_batch = _batch_yf_download(tickers, "2y",  "1d")   # 1 batch call
+        yf_w_batch = _batch_yf_download(tickers, "20y", "1wk")  # 1 batch call
 
-        nse_daily:  dict[str, pd.DataFrame] = {}  # Successful NSE daily data
-        nse_weekly: dict[str, pd.DataFrame] = {}  # Successful NSE weekly data
-        nse_failed: list[str] = []                 # Tickers that failed NSE fetch
-
-        def _try_nse(t: str) -> tuple[str, pd.DataFrame, pd.DataFrame, bool]:
-            """Try fetching a single ticker from NSE. Returns (ticker, daily, weekly, success)."""
-            try:
-                d = _fetch_india_primary(t, "2y",  "1d")   # 2 years daily from NSE
-                w = _fetch_india_primary(t, "20y", "1wk")  # 20 years weekly from NSE
-                return t, d, w, True
-            except Exception:
-                return t, pd.DataFrame(), pd.DataFrame(), False  # NSE failed for this ticker
-
-        # Phase 1: Try NSE for all equities in parallel (10 threads)
-        with ThreadPoolExecutor(max_workers=10) as pool:
-            for t, d, w, ok in pool.map(_try_nse, nse_tickers):
-                if ok:
-                    nse_daily[t]  = d      # Got data from NSE
-                    nse_weekly[t] = w
-                    sources[t] = "primary"
-                else:
-                    nse_failed.append(t)    # NSE failed — will use yfinance
-
-        # Phase 2: Batch yfinance call for all failures + index tickers
-        yf_tickers = nse_failed + index_tickers
-        if yf_tickers:
-            yf_d_batch = _batch_yf_download(yf_tickers, "2y",  "1d")   # 1 batch call
-            yf_w_batch = _batch_yf_download(yf_tickers, "20y", "1wk")  # 1 batch call
-            for t in yf_tickers:
-                nse_daily[t]  = yf_d_batch.get(t,  pd.DataFrame())
-                nse_weekly[t] = yf_w_batch.get(t, pd.DataFrame())
-                sources[t] = "yfinance fallback" if t in nse_failed else "yfinance"
-
-        # Collect close prices from all sources into the final dictionaries
+        # Collect close prices from yfinance
         for t in tickers:
-            d = nse_daily.get(t,  pd.DataFrame())
-            w = nse_weekly.get(t, pd.DataFrame())
+            d = yf_d_batch.get(t,  pd.DataFrame())
+            w = yf_w_batch.get(t, pd.DataFrame())
+            sources[t] = "yfinance"
             s = _extract_close(d)
             if s is not None:
                 daily_closes[t] = s
@@ -404,8 +373,8 @@ def get_market_caps(tickers: tuple, market: str, usd_inr: float) -> dict[str, fl
             return t, None  # Silently skip on failure
 
     caps: dict[str, float | None] = {}
-    # Parallel fetch with 20 workers — fast_info is a quick lightweight call
-    with ThreadPoolExecutor(max_workers=20) as pool:
+    # Parallel fetch with 5 workers — fast_info is a quick lightweight call
+    with ThreadPoolExecutor(max_workers=5) as pool:
         for ticker, cap in pool.map(_one, tickers):
             caps[ticker] = cap
     return caps
