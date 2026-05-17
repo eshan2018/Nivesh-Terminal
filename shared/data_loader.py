@@ -280,7 +280,10 @@ def _extract_close(df: pd.DataFrame) -> pd.Series | None:
         return None
     c = df["Close"]
     # Handle case where Close is a DataFrame (MultiIndex) instead of Series
-    return c.iloc[:, 0] if isinstance(c, pd.DataFrame) else c
+    s = c.iloc[:, 0] if isinstance(c, pd.DataFrame) else c
+    # Remove duplicate index values (keep the last occurrence)
+    s = s[~s.index.duplicated(keep='last')]
+    return s
 
 
 @st.cache_data(ttl=900, show_spinner=False)  # Cache for 15 minutes
