@@ -24,6 +24,41 @@ Artha Terminal tracks **220 assets** across Indian (Nifty 100 + NSE ETFs) and US
 
 ---
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="screenshots/HOME Page 1.png" alt="Home Page" width="400"/><br/><sub><b>Home Page — Live Market Pulse</b></sub></td>
+    <td><img src="screenshots/HOME Page 2.png" alt="Home Page 2" width="400"/><br/><sub><b>Home Page — Trending Assets</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/Indian Market Tickers list.png" alt="Market Overview" width="400"/><br/><sub><b>Market Overview — Nifty 100 Tickers</b></sub></td>
+    <td><img src="screenshots/Performance Heatmap.png" alt="Performance Heatmap" width="400"/><br/><sub><b>Performance Heatmap — Treemap + Sector View</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/Portfolio Builder 1.png" alt="Portfolio Builder" width="400"/><br/><sub><b>Portfolio Builder — Stock Recommender</b></sub></td>
+    <td><img src="screenshots/Portfolio Builder 2.png" alt="Portfolio Builder 2" width="400"/><br/><sub><b>Portfolio Builder — SIP Projector</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/Search & Recommend .png" alt="Search & Recommend" width="400"/><br/><sub><b>Search & Recommend — Ticker Intel Card</b></sub></td>
+    <td><img src="screenshots/Stock Analysis.png" alt="Stock Analysis" width="400"/><br/><sub><b>Stock Analysis — Technical Indicators</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/AI Backed Research 1.png" alt="AI Analysis 1" width="400"/><br/><sub><b>AI Analysis — 3-Statement Connections</b></sub></td>
+    <td><img src="screenshots/AI Backed Research 2.png" alt="AI Analysis 2" width="400"/><br/><sub><b>AI Analysis — Financial Health Summary</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/Price History.png" alt="Price History" width="400"/><br/><sub><b>Price History — SMA/EMA/Bollinger Charts</b></sub></td>
+    <td><img src="screenshots/Risk Vs Return.png" alt="Risk vs Return" width="400"/><br/><sub><b>Risk vs Return — Scatter + SML</b></sub></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/Portfolio Builder 3.png" alt="Portfolio Builder 3" width="400"/><br/><sub><b>Portfolio Builder — Efficient Frontier</b></sub></td>
+    <td><img src="screenshots/Glossary.png" alt="Glossary" width="400"/><br/><sub><b>Glossary — Searchable Terms + Sharpe Playground</b></sub></td>
+  </tr>
+</table>
+
+---
+
 ## Financial math highlights
 
 - **Sharpe ratio** — numerator is `mean(weekly_returns) × 52`, not point-in-time 1Y return. More statistically robust for trending assets.
