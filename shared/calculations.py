@@ -414,8 +414,11 @@ def compute_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     loss = -delta.clip(upper=0)                                 # Only negative changes (made positive)
     avg_gain = gain.ewm(com=period - 1, min_periods=period).mean()  # Wilder-smoothed avg gain
     avg_loss = loss.ewm(com=period - 1, min_periods=period).mean()  # Wilder-smoothed avg loss
-    rs = avg_gain / avg_loss.replace(0, float("inf"))           # Relative Strength (avoid /0)
-    return (100 - (100 / (1 + rs))).round(2)                    # RSI formula
+    # RS = avg_gain / avg_loss. When avg_loss → 0 (pure uptrend), RS → ∞ → RSI → 100.
+    # numpy.where avoids divide-by-zero warning; final NaN handled by clipping.
+    rs = np.where(avg_loss > 0, avg_gain / avg_loss.replace(0, np.nan), np.inf)
+    rsi = 100 - (100 / (1 + rs))                                # RSI formula
+    return pd.Series(rsi, index=prices.index).round(2)
 
 
 def compute_macd(

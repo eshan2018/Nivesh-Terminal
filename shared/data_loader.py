@@ -389,9 +389,13 @@ def get_risk_free_rate() -> float:
     The risk-free rate is used as the Sharpe ratio denominator — it's the
     return you'd get with zero risk (government bonds). Falls back to 6.5%
     if the live rate is unavailable.
+
+    NOTE (May 2026): ^INBMK has been intermittently delisted from Yahoo
+    Finance — the code keeps the lookup in case it returns, but the 6.5%
+    fallback is currently the operative value for all Sharpe calculations.
     """
     try:
-        # ^INBMK is India's 10Y benchmark bond yield on yfinance
+        # ^INBMK is India's 10Y benchmark bond yield on yfinance (may be unavailable)
         hist = yf.download("^INBMK", period="5d", progress=False, auto_adjust=True)
         if isinstance(hist.columns, pd.MultiIndex):
             hist.columns = hist.columns.get_level_values(0)
@@ -443,8 +447,8 @@ def get_usd_inr() -> float:
         pass
 
     import warnings
-    warnings.warn("USD/INR live fetch failed — using hardcoded fallback rate of 85.5. US prices may be slightly inaccurate.", stacklevel=2)
-    return 85.5  # Hardcoded fallback — update periodically if live feeds are consistently failing
+    warnings.warn("USD/INR live fetch failed — using hardcoded fallback rate of 95.5. US prices may be slightly inaccurate.", stacklevel=2)
+    return 95.5  # Hardcoded fallback (as of May 2026 ~₹95.78). Update periodically if live feeds keep failing.
 
 
 # ── Live quotes (home page pulse bar) ────────────────────────────────────────
