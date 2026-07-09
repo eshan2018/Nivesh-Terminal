@@ -1,5 +1,5 @@
 # ================================================================
-# ARTHA TERMINAL — INDIAN MARKET UNIVERSE
+# NIVESH TERMINAL — INDIAN MARKET UNIVERSE
 # 100 Nifty 100 constituents + 10 NSE-listed ETFs
 # Source: Nifty 100 index as of April 2026
 # All tickers use Yahoo Finance .NS suffix (data via yfinance)

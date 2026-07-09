@@ -1,4 +1,4 @@
-# Artha Terminal — pinned dependencies (Python 3.12)
+# Nivesh Terminal — pinned dependencies (Python 3.12)
 # Run: pip install -r requirements.txt
 streamlit==1.56.0
 yfinance==0.2.66

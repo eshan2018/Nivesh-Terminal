@@ -1,5 +1,5 @@
 # ================================================================
-# ARTHA TERMINAL — US MARKET UNIVERSE
+# NIVESH TERMINAL — US MARKET UNIVERSE
 # Nasdaq 100 + top S&P 500 picks (100 stocks) + 10 best US ETFs
 # All accessible for Indian investors via INDmoney / Vested
 # Source: Nasdaq 100 + S&P 500 as of April 2026

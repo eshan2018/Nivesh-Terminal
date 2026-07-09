@@ -1,5 +1,5 @@
 # ================================================================
-# ARTHA TERMINAL — LANDING PAGE
+# NIVESH TERMINAL — LANDING PAGE
 # ================================================================
 # This is the main entry point for the Streamlit app.
 # It renders the home/landing page with:
@@ -77,7 +77,7 @@ now_str = datetime.now(_IST).strftime("%b %d, %Y · %H:%M IST")  # Current times
 st.markdown(f"""
 <div class="hero">
   <div class="hero-badge a0">🇮🇳 Built for the Indian Global Investor</div>
-  <div class="hero-title a1">ARTHA<br><span>TERMINAL</span></div>
+  <div class="hero-title a1">NIVESH<br><span>TERMINAL</span></div>
   <div class="hero-tagline a2">
     Wealth Intelligence. Indian Roots. Global Vision.<br>
     A Bloomberg-grade platform tracking 220 assets across US &amp; Indian markets —
@@ -365,7 +365,7 @@ for col, (num, title, desc) in zip(st.columns(4), steps):
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
 
-# ── WHY ARTHA ─────────────────────────────────────────────────────────────────
+# ── WHY NIVESH ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="section-sub">Why Nivesh Terminal</div>
 <div class="section-title">Built Different. On Purpose.</div>
