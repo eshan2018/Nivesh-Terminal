@@ -76,59 +76,131 @@ now_str = datetime.now(_IST).strftime("%b %d, %Y · %H:%M IST")  # Current times
 
 st.markdown(f"""
 <div class="hero">
-  <div class="hero-badge a0">🇮🇳 Built for the Indian Global Investor</div>
+  <div class="hero-badge a0">220 assets · 20 years of data · Free forever</div>
   <div class="hero-title a1">NIVESH<br><span>TERMINAL</span></div>
   <div class="hero-tagline a2">
-    Wealth Intelligence. Indian Roots. Global Vision.<br>
-    A Bloomberg-grade platform tracking 220 assets across US &amp; Indian markets —
-    free, open, and built for the next generation of Indian investors.
+    Institutional portfolio math for the Indian retail investor.<br>
+    Live Nifty 100 and S&amp;P 500 data, Modern Portfolio Theory, and AI 3-statement
+    analysis — the terminal you couldn't afford, in your browser.
   </div>
   <div class="t-label a3" style="font-size:0.7rem;">{now_str}</div>
 </div>
 """, unsafe_allow_html=True)
 
 
-# ── CSS MARQUEE TICKER BAR ───────────────────────────────────────────────────
-# Scrolling horizontal ticker strip showing all 12 indices + USD/INR
+# ── STATIC METRIC STRIP (replaces auto-scrolling marquee) ────────────────────
+# A quiet, dignified row of 4 key market metrics. Reads at a glance.
 if pulse_data:
-    def _ticker_html(item: dict) -> str:
-        """Generate HTML for a single ticker item in the marquee bar."""
-        chg = item["chg"]  # Daily % change
-        # Choose CSS class based on whether the asset is up, down, or flat
+    def _idx_lookup(ticker: str) -> dict | None:
+        for r in pulse_data:
+            if r.get("ticker") == ticker:
+                return r
+        return None
+
+    def _strip_item(label: str, ticker: str, is_fx: bool = False) -> str:
+        r = _idx_lookup(ticker)
+        if not r:
+            return ""
+        chg = r["chg"]
         cls = "t-item-up" if chg > 0 else ("t-item-down" if chg < 0 else "t-item-flat")
-        arrow = "▲" if chg > 0 else ("▼" if chg < 0 else "—")  # Up/down/flat arrow
+        arrow = "▲" if chg > 0 else ("▼" if chg < 0 else "—")
+        price_str = f"₹{r['price']:.2f}" if is_fx else f"{r['price']:,.2f}"
+        chg_html = "" if is_fx else f'<span class="strip-chg {cls}">{arrow} {abs(chg):.2f}%</span>'
         return (
-            f'<span class="t-item">'
-            f'<span class="t-item-label">{item["label"]}</span>'
-            f'<span class="t-item-price">{item["price"]:,.2f}</span>'
-            f'<span class="{cls}">{arrow} {abs(chg):.2f}%</span>'
-            f'</span>'
+            f'<div class="strip-item">'
+            f'<div class="strip-label">{label}</div>'
+            f'<div class="strip-price">{price_str}</div>'
+            f'{chg_html}'
+            f'</div>'
         )
 
-    # Build the marquee HTML: all items concatenated
-    items_html = "".join(_ticker_html(r) for r in pulse_data)
+    strip_html = (
+        _strip_item("NIFTY 50", "^NSEI") +
+        _strip_item("S&P 500", "^GSPC") +
+        _strip_item("USD/INR", "USDINR", is_fx=True) +
+        _strip_item("VIX", "^VIX")
+    )
+    st.markdown(f'<div class="metric-strip">{strip_html}</div>', unsafe_allow_html=True)
 
-    # Duplicate the items for a seamless infinite loop (CSS animation scrolls through first half,
-    # then jumps back — the duplicate creates visual continuity)
-    st.markdown(
-        f'<div class="marquee-wrap">'
-        f'<div class="marquee-track">{items_html}{items_html}</div>'
-        f'</div>',
-        unsafe_allow_html=True,
+# Spacer between strip and sparkline row
+st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
+
+
+# ── 6-SPARKLINE STRIP (data-forward visual signal) ───────────────────────────
+# 6 mini charts showing 3-month trend of key global indices. No labels needed —
+# these say "this is a data product" before the user reads a single word.
+@st.cache_data(ttl=900, show_spinner=False)
+def _get_sparklines():
+    """Fetch 3M daily closes for 6 major indices for tiny inline sparklines."""
+    import yfinance as yf
+    tickers_map = [
+        ("^NSEI", "Nifty 50"),
+        ("^BSESN", "Sensex"),
+        ("^NSEBANK", "Bank Nifty"),
+        ("^GSPC", "S&P 500"),
+        ("^IXIC", "Nasdaq"),
+        ("^DJI", "Dow Jones"),
+    ]
+    out = []
+    for tk, label in tickers_map:
+        try:
+            hist = yf.Ticker(tk).history(period="3mo")["Close"].dropna()
+            hist = hist[~hist.index.duplicated(keep="last")]
+            if len(hist) >= 10:
+                values = hist.tolist()
+                chg_pct = (values[-1] / values[0] - 1) * 100
+                out.append({"label": label, "values": values, "chg": chg_pct})
+        except Exception:
+            continue
+    return out
+
+
+def _sparkline_svg(values: list, color: str, w: int = 120, h: int = 32) -> str:
+    """Return inline SVG polyline for a single sparkline."""
+    if not values or len(values) < 2:
+        return ""
+    lo, hi = min(values), max(values)
+    span = hi - lo if hi > lo else 1
+    step = w / (len(values) - 1)
+    points = " ".join(f"{i*step:.1f},{h - ((v-lo)/span)*h:.1f}" for i, v in enumerate(values))
+    end_x = (len(values) - 1) * step
+    end_y = h - ((values[-1] - lo) / span) * h
+    return (
+        f'<svg viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" '
+        f'style="width:100%;height:{h}px;overflow:visible;">'
+        f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'
+        f'<circle cx="{end_x:.1f}" cy="{end_y:.1f}" r="2.5" fill="{color}"/>'
+        f'</svg>'
     )
 
-# Spacer between marquee and market selection cards
-st.markdown("<div style='height:48px'></div>", unsafe_allow_html=True)
+
+sparks = _get_sparklines()
+if sparks:
+    def _spark_item(s: dict) -> str:
+        color = "#00c853" if s["chg"] >= 0 else "#e53935"
+        arrow = "▲" if s["chg"] >= 0 else "▼"
+        return (
+            f'<div class="spark-item">'
+            f'<div class="spark-label">{s["label"]}</div>'
+            f'{_sparkline_svg(s["values"], color)}'
+            f'<div class="spark-chg" style="color:{color};">{arrow} {abs(s["chg"]):.2f}% <span style="color:var(--text-muted);font-weight:400;">3M</span></div>'
+            f'</div>'
+        )
+    spark_html = "".join(_spark_item(s) for s in sparks)
+    st.markdown(f'<div class="spark-strip">{spark_html}</div>', unsafe_allow_html=True)
+
+# Spacer between sparklines and market cards
+st.markdown("<div style='height:56px'></div>", unsafe_allow_html=True)
 
 
 # ── MARKET SELECTION CARDS ───────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;margin-bottom:36px;">
   <div class="section-sub">Choose Your Market</div>
-  <div class="section-title">Two Markets. One Platform.</div>
+  <div class="section-title">Nifty 100 or S&amp;P 500?</div>
   <p style="color:var(--text-muted);font-size:0.86rem;max-width:480px;margin:10px auto 0;line-height:1.65;">
-    Select a market to enter the full intelligence dashboard — live prices,
-    risk analysis, portfolio builder, and 20-year history.
+    Each dashboard: 110 assets, 20 years of weekly data, 7 analytical tabs,
+    live prices, and a SEBI-aligned risk profiler.
   </p>
 </div>
 """, unsafe_allow_html=True)
@@ -317,7 +389,7 @@ if asset_rows:
 # ── FEATURES SHOWCASE ─────────────────────────────────────────────────────────
 st.markdown("""
 <div class="section-sub">What's Inside</div>
-<div class="section-title">Everything You Need. Nothing You Don't.</div>
+<div class="section-title">Seven Tabs. One Terminal.</div>
 <br>
 """, unsafe_allow_html=True)
 
@@ -348,7 +420,7 @@ st.markdown('<hr class="divider">', unsafe_allow_html=True)
 # ── HOW IT WORKS ─────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="section-sub">How It Works</div>
-<div class="section-title">Simple. Transparent. Accurate.</div>
+<div class="section-title">From Risk Profile to Portfolio in 4 Steps.</div>
 <br>
 """, unsafe_allow_html=True)
 
@@ -368,7 +440,7 @@ st.markdown('<hr class="divider">', unsafe_allow_html=True)
 # ── WHY NIVESH ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="section-sub">Why Nivesh Terminal</div>
-<div class="section-title">Built Different. On Purpose.</div>
+<div class="section-title">Every Formula Verified. Every Assumption Documented.</div>
 <br>
 """, unsafe_allow_html=True)
 

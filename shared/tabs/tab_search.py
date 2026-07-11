@@ -286,7 +286,7 @@ def render(*, filtered, metrics, df_daily, df_weekly, market, usd_inr, profile, 
                             radar_data[tk][cat] = round((radar_data[tk][cat] - mn) / rng * 100 if rng > 0 else 100, 1)
 
                     # ── Build the radar (polar) chart ─────────────────────────
-                    colors_palette = ["#00d4ff", "#ffd700", "#00e676", "#b388ff"]  # One color per ticker
+                    colors_palette = ["#f5b800", "#f5b800", "#00e676", "#b388ff"]  # One color per ticker
                     fig_r = go.Figure()
                     for i, tk in enumerate(raw_tickers):
                         # Close the polygon by repeating the first value at the end

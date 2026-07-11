@@ -190,7 +190,7 @@ def render(*, filtered, metrics, df_daily, df_weekly, market, usd_inr, profile, 
 
     # Add lines for each scenario: selected ticker, index, FD, savings
     for vals, name, color, dash, width in [
-        (_fv(ticker_cagr),     f"📈 {wi_ticker} ({ticker_cagr*100:.1f}%)",         "#00d4ff", "solid",   2.6),
+        (_fv(ticker_cagr),     f"📈 {wi_ticker} ({ticker_cagr*100:.1f}%)",         "#f5b800", "solid",   2.6),
         (_fv(rates["index"]),  f"📊 {_IDX_LABEL} ({rates['index']*100:.0f}%)",      "#00e676", "dash",    1.8),
         (_fv(rates["fd"]),     f"🏦 Fixed Deposit ({rates['fd']*100:.2f}%)",         "#ffd700", "dot",     1.6),
         (_fv(rates["savings"]),f"💰 Savings Acct ({rates['savings']*100:.1f}%)",     "#b388ff", "dashdot", 1.4),
@@ -221,8 +221,8 @@ def render(*, filtered, metrics, df_daily, df_weekly, market, usd_inr, profile, 
             if sv >= target:
                 # Add an annotation arrow at the first year where the milestone is hit
                 fig_wi.add_annotation(x=yi, y=sv, text=lbl,
-                    font=dict(size=9, color="#00d4ff"),
-                    showarrow=True, arrowhead=2, arrowcolor="#00d4ff", ay=-28, ax=0)
+                    font=dict(size=9, color="#f5b800"),
+                    showarrow=True, arrowhead=2, arrowcolor="#f5b800", ay=-28, ax=0)
                 break  # Only mark the first crossing
 
     # Apply theme and render

@@ -86,7 +86,7 @@ def _price_chart(ticker: str, name: str, market: str, period: str, usd_inr: floa
         )
 
     # ── Main price line ──────────────────────────────────────────────────────
-    color = "#00d4ff"  # Cyan accent color for the price line
+    color = "#f5b800"  # Cyan accent color for the price line
     fig.add_trace(
         go.Scatter(x=close.index, y=close.values, name=name,
                    line=dict(color=color, width=1.8)),
@@ -132,7 +132,7 @@ def _price_chart(ticker: str, name: str, market: str, period: str, usd_inr: floa
         rsi = compute_rsi(close)  # 14-day RSI
         fig.add_trace(
             go.Scatter(x=rsi.index, y=rsi.values, name="RSI (14)",
-                       line=dict(color="#00d4ff", width=1.4)),
+                       line=dict(color="#f5b800", width=1.4)),
             row=2, col=1,
         )
         # Overbought (70) and oversold (30) reference lines
@@ -152,7 +152,7 @@ def _price_chart(ticker: str, name: str, market: str, period: str, usd_inr: floa
         )
         fig.add_trace(
             go.Scatter(x=macd.index, y=macd.values, name="MACD",
-                       line=dict(color="#00d4ff", width=1.3)),
+                       line=dict(color="#f5b800", width=1.3)),
             row=2, col=1,
         )
         fig.add_trace(

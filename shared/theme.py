@@ -15,16 +15,16 @@ The CSS covers:
 """
 import streamlit as st  # Streamlit UI framework
 
-# Google Fonts URL — loads 4 font families used throughout the app:
-# Playfair Display (serif, for titles), DM Sans (body text),
-# JetBrains Mono (monospace, for numbers/code), Inter (UI labels)
-_FONTS = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap"
+# Google Fonts URL — 2 font families, terminal-style restraint:
+# Inter (all UI + hero + body), JetBrains Mono (all numbers)
+# Removed Playfair Display + DM Sans — 2 fonts read as more institutional
+_FONTS = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
 
 # Shared Plotly theme — applied to every chart via fig.update_layout(**PLOTLY_THEME)
 PLOTLY_THEME = {
     "paper_bgcolor": "#060a12",  # Chart outer background (matches page)
     "plot_bgcolor":  "#060a12",  # Chart inner plot area background
-    "font": {"color": "#f0f6ff", "family": "Inter, DM Sans, sans-serif"},  # Light text on dark bg
+    "font": {"color": "#f5f5f5", "family": "Inter, sans-serif"},  # Light text on dark bg
 }
 
 # Grid line color for chart axes — very subtle so charts feel clean
@@ -42,7 +42,7 @@ def inject_theme(hide_sidebar: bool = False) -> None:
 
     st.markdown(f"""
 <style>
-/* Import Google Fonts (Playfair Display, DM Sans, JetBrains Mono, Inter) */
+/* Import Google Fonts (Inter for all UI, JetBrains Mono for numbers) */
 @import url('{_FONTS}');
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -51,24 +51,24 @@ def inject_theme(hide_sidebar: bool = False) -> None:
    can be restyled by changing these 11 values.
    ══════════════════════════════════════════════════════════════════════════ */
 :root {{
-  --bg-base:        #060a12;              /* Deepest background (page level) */
-  --bg-surface:     #0d1526;              /* Card / panel background */
-  --bg-elevated:    #111d33;              /* Hover / raised surface */
-  --border:         #1e2d45;              /* Default border color */
-  --border-active:  #00d4ff;              /* Active / focused border (cyan) */
-  --text-primary:   #f0f6ff;             /* Main text color (near-white) */
-  --text-secondary: #8da4c4;             /* Secondary text (muted blue-grey) */
-  --text-muted:     #4a6080;             /* Least prominent text */
-  --accent:         #00d4ff;              /* Primary accent color (cyan) */
-  --accent-dim:     rgba(0,212,255,0.12); /* Faint accent background */
-  --green:          #00e676;              /* Positive / gain color */
-  --green-dim:      rgba(0,230,118,0.12); /* Faint green background */
-  --red:            #f44336;              /* Negative / loss color */
-  --red-dim:        rgba(244,67,54,0.12); /* Faint red background */
-  --gold:           #ffd700;              /* Warning / neutral accent */
-  --gold-dim:       rgba(255,215,0,0.12); /* Faint gold background */
-  --purple:         #b388ff;              /* Secondary accent (used for volatility) */
-  --purple-dim:     rgba(179,136,255,0.12); /* Faint purple background */
+  --bg-base:        #0a0a0a;              /* Warm off-black (Bloomberg-adjacent) */
+  --bg-surface:     #141414;              /* Card / panel background */
+  --bg-elevated:    #1c1c1c;              /* Hover / raised surface */
+  --border:         #2a2a2a;              /* Default border color (neutral) */
+  --border-active:  #f5b800;              /* Active / focused border (amber) */
+  --text-primary:   #f5f5f5;             /* Main text color (near-white) */
+  --text-secondary: #a3a3a3;             /* Secondary text (warm grey) */
+  --text-muted:     #666666;             /* Least prominent text (neutral) */
+  --accent:         #f5b800;              /* Primary accent — Bloomberg amber */
+  --accent-dim:     rgba(245,184,0,0.12); /* Faint accent background */
+  --green:          #00c853;              /* Positive / gain (more institutional) */
+  --green-dim:      rgba(0,200,83,0.12);  /* Faint green background */
+  --red:            #e53935;              /* Negative / loss */
+  --red-dim:        rgba(229,57,53,0.12); /* Faint red background */
+  --gold:           #f5b800;              /* Warning / neutral accent (matches amber) */
+  --gold-dim:       rgba(245,184,0,0.12); /* Faint gold background */
+  --purple:         #ab47bc;              /* Secondary accent (volatility) */
+  --purple-dim:     rgba(171,71,188,0.12); /* Faint purple background */
 }}
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -78,7 +78,7 @@ def inject_theme(hide_sidebar: bool = False) -> None:
 html, body, [data-testid="stAppViewContainer"], .stApp {{
     background-color: var(--bg-base) !important;  /* Dark background everywhere */
     color: var(--text-primary);                    /* Light text */
-    font-family: 'DM Sans', sans-serif;            /* Default body font */
+    font-family: 'Inter', sans-serif;            /* Default body font */
 }}
 .main .block-container {{
     padding-top: 0;              /* Remove top padding for tighter layout */
@@ -108,7 +108,7 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
    TYPOGRAPHY HELPERS — reusable CSS classes for text styling.
    ══════════════════════════════════════════════════════════════════════════ */
 .t-display {{
-    font-family: 'Playfair Display', serif;  /* Elegant serif for hero titles */
+    font-family: 'Inter', sans-serif;  /* Elegant serif for hero titles */
     font-weight: 800;
     color: var(--text-primary);
     line-height: 1.1;
@@ -388,7 +388,99 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
 }}
 
 /* ══════════════════════════════════════════════════════════════════════════
-   MARQUEE TICKER — auto-scrolling horizontal ticker strip on the home page.
+   METRIC STRIP — quiet static row of 4 key market metrics.
+   Replaces the auto-scrolling marquee (2001 pattern) with a Bloomberg-style
+   dignified data strip. Reads at a glance. No motion. Institutional.
+   ══════════════════════════════════════════════════════════════════════════ */
+.metric-strip {{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin: 0 0 4px;
+}}
+.strip-item {{
+    padding: 14px 20px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}}
+.strip-item:last-child {{ border-right: none; }}
+.strip-label {{
+    font-family: 'Inter', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}}
+.strip-price {{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1;
+}}
+.strip-chg {{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1;
+}}
+@media (max-width: 768px) {{
+    .metric-strip {{ grid-template-columns: repeat(2, 1fr); }}
+    .strip-item {{ border-bottom: 1px solid var(--border); }}
+    .strip-item:nth-child(1), .strip-item:nth-child(3) {{ border-right: 1px solid var(--border); }}
+    .strip-item:nth-child(2) {{ border-right: none; }}
+    .strip-item:nth-last-child(-n+2) {{ border-bottom: none; }}
+}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SPARKLINE STRIP — 6 mini charts signaling "this is a data product".
+   Sits between the metric strip and the market selection cards.
+   No axes, no labels — just tiny trend lines with colored end-dots.
+   ══════════════════════════════════════════════════════════════════════════ */
+.spark-strip {{
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    max-width: 1080px;
+    margin: 0 auto;
+    overflow: hidden;
+}}
+.spark-item {{
+    background: var(--bg-surface);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: background 0.15s ease;
+}}
+.spark-item:hover {{ background: var(--bg-elevated); }}
+.spark-label {{
+    font-family: 'Inter', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}}
+.spark-chg {{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+}}
+@media (max-width: 768px) {{
+    .spark-strip {{ grid-template-columns: repeat(2, 1fr); }}
+}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MARQUEE TICKER — DEPRECATED (kept for legacy compatibility, unused).
    Uses CSS animation (no JavaScript). Duplicated content creates seamless loop.
    ══════════════════════════════════════════════════════════════════════════ */
 .marquee-wrap {{
@@ -445,7 +537,7 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
 .hero {{
     text-align: center;
     padding: 80px 24px 60px;
-    background: radial-gradient(ellipse at top, #0d1f3c 0%, #060a12 65%);  /* Spotlight gradient */
+    background: var(--bg-base);  /* Flat off-black — no spotlight cliché */
     border-bottom: 1px solid var(--border);
 }}
 .hero-badge {{
@@ -462,7 +554,7 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
     margin-bottom: 24px;
 }}
 .hero-title {{
-    font-family: 'Playfair Display', serif;
+    font-family: 'Inter', sans-serif;
     font-size: 4.2rem;
     font-weight: 800;
     color: var(--text-primary);
@@ -519,7 +611,7 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
     box-shadow: 0 20px 44px rgba(0,212,255,0.09);  /* Cyan glow */
 }}
 .market-card-flag  {{ font-size: 3.2rem; margin-bottom: 14px; }}
-.market-card-title {{ font-family: 'Playfair Display', serif; font-size: 1.55rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }}
+.market-card-title {{ font-family: 'Inter', sans-serif; font-size: 1.55rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }}
 .market-card-sub   {{ color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; margin-bottom: 18px; }}
 .market-card-desc  {{ color: var(--text-secondary); font-size: 0.86rem; line-height: 1.6; margin-bottom: 20px; }}
 .market-card-stats {{ display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; }}
@@ -568,7 +660,7 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
 /* ══════════════════════════════════════════════════════════════════════════
    SECTION CHROME — centered section headers and horizontal dividers.
    ══════════════════════════════════════════════════════════════════════════ */
-.section-title {{ font-family: 'Playfair Display', serif; font-size: 1.9rem; font-weight: 700; color: var(--text-primary); text-align: center; margin-bottom: 6px; }}
+.section-title {{ font-family: 'Inter', sans-serif; font-size: 1.9rem; font-weight: 700; color: var(--text-primary); text-align: center; margin-bottom: 6px; }}
 .section-sub   {{ color: var(--text-muted); font-size: 0.72rem; text-align: center; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; margin-bottom: 32px; }}
 .divider {{ border: none; border-top: 1px solid var(--border); margin: 52px 0; }}
 
@@ -610,7 +702,7 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
     text-align: center;
     margin-top: 48px;
 }}
-.footer-name {{ font-family: 'Playfair Display', serif; font-size: 1.35rem; color: var(--accent); margin-bottom: 7px; }}
+.footer-name {{ font-family: 'Inter', sans-serif; font-size: 1.35rem; color: var(--accent); margin-bottom: 7px; }}
 .footer-desc {{ color: var(--text-muted); font-size: 0.8rem; margin-bottom: 18px; }}
 .footer-links {{ display: flex; justify-content: center; gap: 22px; flex-wrap: wrap; margin-bottom: 18px; }}
 .footer-link {{ color: var(--text-muted); font-size: 0.76rem; text-decoration: none; transition: color 0.15s; }}
