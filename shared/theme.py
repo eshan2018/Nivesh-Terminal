@@ -677,6 +677,42 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
 }}
 
 /* ══════════════════════════════════════════════════════════════════════════
+   ACCESSIBILITY — keyboard focus states for buttons, inputs, tabs.
+   Ensures keyboard-only users see where focus is. WCAG 2.1 requirement.
+   ══════════════════════════════════════════════════════════════════════════ */
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.stTabs [data-baseweb="tab"]:focus-visible,
+[data-testid="stFormSubmitButton"] button:focus-visible {{
+    outline: 2px solid var(--accent) !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.15) !important;
+}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABLE OVERFLOW — ensures dataframes scroll horizontally on narrow screens
+   instead of overflowing the page. WCAG horizontal-scroll requirement.
+   ══════════════════════════════════════════════════════════════════════════ */
+[data-testid="stDataFrame"],
+[data-testid="stTable"] {{
+    overflow-x: auto !important;
+    max-width: 100% !important;
+}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABLET RESPONSIVE — adjustments for tablet-sized screens (769-1024px).
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1024px) {{
+    .hero-title {{ font-size: 3rem; }}          /* Slightly smaller hero */
+    .hero-tagline {{ font-size: 1.05rem; }}
+    .dash-title {{ font-size: 1.3rem; }}
+    .main .block-container {{ padding-left: 1rem; padding-right: 1rem; }}
+}}
+
+/* ══════════════════════════════════════════════════════════════════════════
    MOBILE RESPONSIVE — adjustments for screens narrower than 768px.
    ══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {{
