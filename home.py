@@ -54,10 +54,11 @@ def get_live_pulse():
         # US indices
         ("^GSPC",    "S&P 500",      "us"),
         ("^IXIC",    "Nasdaq",       "us"),
-        ("^DJI",     "Dow Jones",    "us"),
-        ("^RUT",     "Russell 2000", "us"),
-        ("^VIX",     "VIX",          "us"),
-        ("^FTSE",    "FTSE 100",     "us"),
+        ("^DJI",     "Dow Jones",     "us"),
+        ("^RUT",     "Russell 2000",  "us"),
+        ("^SP400",   "S&P MidCap 400","us"),
+        ("^VIX",     "VIX",           "us"),
+        ("^FTSE",    "FTSE 100",      "us"),
     )
 
     # Build the USD/INR row manually (it's not an index, just an FX rate)
@@ -178,10 +179,11 @@ india_rows = (
 us_rows = (
     _card_row("S&P 500",      "^GSPC") +
     _card_row("Nasdaq",       "^IXIC") +
-    _card_row("Dow Jones",    "^DJI") +
-    _card_row("Russell 2000", "^RUT") +
-    _card_row("VIX",          "^VIX") +
-    _card_row("FTSE 100",     "^FTSE")
+    _card_row("Dow Jones",      "^DJI") +
+    _card_row("Russell 2000",   "^RUT") +
+    _card_row("S&P MidCap 400", "^SP400") +
+    _card_row("VIX",            "^VIX") +
+    _card_row("FTSE 100",       "^FTSE")
 )
 
 # Render the two market cards side by side with a tiny gap column in between

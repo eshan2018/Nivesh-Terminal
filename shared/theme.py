@@ -518,6 +518,17 @@ html, body, [data-testid="stAppViewContainer"], .stApp {{
     transform: translateY(-4px);       /* Lift up on hover */
     box-shadow: 0 20px 44px rgba(255,179,0,0.09);  /* Amber glow */
 }}
+/* Equal-height cards: the India/US columns already stretch to the same height,
+   but each card only takes its own content height (footer/subtitle text
+   differs). Make the card's wrapper chain a growing flex column so the card
+   fills its column — both cards then render identically regardless of text. */
+[data-testid="stColumn"] [data-testid="stElementContainer"]:has(.market-card),
+[data-testid="stColumn"] [data-testid="stElementContainer"]:has(.market-card) .stMarkdown,
+[data-testid="stColumn"] [data-testid="stElementContainer"]:has(.market-card) [data-testid="stMarkdownContainer"] {{
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+}}
 .market-card-flag  {{ font-size: 3.2rem; margin-bottom: 14px; }}
 .market-card-title {{ font-family: 'Inter', sans-serif; font-size: 1.55rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }}
 .market-card-sub   {{ color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; margin-bottom: 18px; }}
