@@ -35,3 +35,6 @@ web/.next/
 web/out/
 .vercel/
 *.tsbuildinfo
+
+# Next.js generated types
+web/next-env.d.ts
