@@ -246,8 +246,11 @@ def fetch_asset_history(
         hist   = _yf_history(ticker, period, interval)  # Fallback to yfinance
         source = "yfinance fallback"
 
-    # Convert US prices from USD to INR
-    if market == "us" and not hist.empty:
+    # Convert US prices from USD to INR — but NOT index levels. An index
+    # (^GSPC, ^VIX, ^FTSE, …) is a unitless point value, not a dollar price;
+    # multiplying it by USD/INR would inflate it ~95× (S&P 7,524 → 718,571).
+    # US stocks/ETFs (no ^ prefix) still convert so they compare in INR.
+    if market == "us" and not is_index and not hist.empty:
         hist = _apply_fx(hist, usd_inr)
 
     # Remove any duplicate dates (can happen from multiple sources)
