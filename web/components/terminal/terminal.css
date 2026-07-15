@@ -1,0 +1,226 @@
+/* ============ NIVESH TERMINAL — terminal UI landing ============ */
+/* Amber phosphor on navy-black. Everything monospace. */
+
+:root {
+  --t-bg: #060a12;
+  --t-surface: #0a101d;
+  --t-border: #1e2d45;
+  --t-amber: #ffb300;
+  --t-amber-dim: rgba(255, 179, 0, 0.4);
+  --t-amber-faint: rgba(255, 179, 0, 0.12);
+  --t-text: #d8e2f3;
+  --t-muted: #4a6080;
+  --t-secondary: #8da4c4;
+  --t-green: #00e676;
+  --t-red: #f44336;
+}
+
+.term-root {
+  min-height: 100vh;
+  background: var(--t-bg);
+  color: var(--t-text);
+  font-family: var(--font-jetbrains), "JetBrains Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  position: relative;
+}
+
+/* CRT scanlines + vignette */
+.term-root::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 60;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+.term-root::after {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 61;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.35));
+}
+
+.amber { color: var(--t-amber); text-shadow: 0 0 8px var(--t-amber-dim); }
+.up { color: var(--t-green); }
+.down { color: var(--t-red); }
+.muted { color: var(--t-muted); }
+
+.cursor {
+  display: inline-block; width: 8px; height: 15px;
+  background: var(--t-amber); vertical-align: text-bottom;
+  animation: blink 1.05s steps(1) infinite;
+  box-shadow: 0 0 8px var(--t-amber-dim);
+}
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+
+/* ---------- boot overlay ---------- */
+.boot {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--t-bg);
+  padding: 12vh 8vw;
+  font-size: 13px;
+  transition: opacity 0.45s ease;
+}
+.boot.done { opacity: 0; pointer-events: none; }
+.boot-line { white-space: pre-wrap; }
+.boot-line .ok { color: var(--t-green); }
+.boot-line .warn { color: var(--t-amber); }
+.boot-skip {
+  position: absolute; bottom: 6vh; left: 8vw;
+  color: var(--t-muted); font-size: 11px;
+}
+
+/* ---------- status bar ---------- */
+.statusbar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 18px;
+  padding: 8px 16px;
+  background: var(--t-surface);
+  border-bottom: 1px solid var(--t-border);
+  font-size: 11.5px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.statusbar .brand { font-weight: 700; letter-spacing: 0.06em; }
+.statusbar .sep { color: var(--t-border); }
+.statusbar .right { margin-left: auto; display: flex; gap: 18px; }
+.badge-open { color: var(--t-green); }
+.badge-closed { color: var(--t-muted); }
+
+/* ---------- command bar ---------- */
+.cmdbar {
+  position: sticky; top: 34px; z-index: 49;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: rgba(6, 10, 18, 0.96);
+  border-bottom: 1px solid var(--t-border);
+  backdrop-filter: blur(4px);
+}
+.cmdbar .prompt { color: var(--t-amber); text-shadow: 0 0 8px var(--t-amber-dim); }
+.cmdbar input {
+  flex: 1;
+  background: transparent; border: none; outline: none;
+  color: var(--t-text);
+  font-family: inherit; font-size: 13px;
+  caret-color: var(--t-amber);
+}
+.cmdbar input::placeholder { color: var(--t-muted); }
+.cmd-output {
+  padding: 8px 16px 0;
+  color: var(--t-secondary);
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+/* ---------- pane grid ---------- */
+.pane-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 10px;
+  padding: 14px 16px 20px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+.pane {
+  border: 1px solid var(--t-border);
+  background: var(--t-surface);
+  display: flex; flex-direction: column;
+  min-width: 0;
+}
+.pane:hover { border-color: var(--t-amber-dim); }
+.pane-title {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--t-border);
+  font-size: 11px; letter-spacing: 0.08em;
+  color: var(--t-secondary);
+  background: rgba(255, 255, 255, 0.015);
+}
+.pane-title .id { color: var(--t-amber); }
+.pane-title .controls { color: var(--t-muted); letter-spacing: 0.2em; }
+.pane-body { padding: 12px; flex: 1; overflow: auto; }
+
+/* spans */
+.s3 { grid-column: span 3; } .s4 { grid-column: span 4; }
+.s5 { grid-column: span 5; } .s6 { grid-column: span 6; }
+.s8 { grid-column: span 8; } .s12 { grid-column: span 12; }
+@media (max-width: 1100px) {
+  .s3, .s4, .s5 { grid-column: span 6; }
+  .s6, .s8 { grid-column: span 12; }
+}
+@media (max-width: 640px) {
+  .s3, .s4, .s5, .s6, .s8 { grid-column: span 12; }
+  .term-root { font-size: 12px; }
+}
+
+/* ---------- market watch ---------- */
+.mw-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px dashed rgba(30, 45, 69, 0.6);
+}
+.mw-row:last-child { border-bottom: none; }
+.mw-row .n { color: var(--t-secondary); }
+.mw-flash { animation: flash 0.5s ease; }
+@keyframes flash { 0% { background: var(--t-amber-faint); } 100% { background: transparent; } }
+
+/* ---------- ascii trend ---------- */
+.spark {
+  font-size: 22px; letter-spacing: 1px; line-height: 1;
+  color: var(--t-amber); text-shadow: 0 0 10px var(--t-amber-dim);
+  overflow: hidden; white-space: nowrap;
+}
+.trend-big {
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+  font-weight: 700; margin-top: 10px;
+}
+.trend-caption { color: var(--t-muted); font-size: 11px; margin-top: 6px; }
+
+/* ---------- ls modules ---------- */
+.ls-row {
+  display: grid; grid-template-columns: 150px 1fr;
+  gap: 12px; padding: 3px 0;
+}
+.ls-row .file { color: var(--t-amber); }
+.ls-row .desc { color: var(--t-secondary); }
+@media (max-width: 640px) { .ls-row { grid-template-columns: 1fr; gap: 2px; } }
+
+/* ---------- manifesto ---------- */
+.manifesto { white-space: pre-wrap; color: var(--t-secondary); }
+.manifesto b { color: var(--t-text); font-weight: 600; }
+
+/* ---------- risk stages ---------- */
+.stage { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.stage .bar { flex: 1; height: 8px; background: var(--t-border); position: relative; }
+.stage .bar span { position: absolute; inset: 0 auto 0 0; background: var(--t-amber); opacity: 0.85; }
+.stage .name { width: 110px; color: var(--t-secondary); font-size: 11.5px; }
+.stage .alloc { width: 100px; text-align: right; color: var(--t-muted); font-size: 11px; }
+
+/* ---------- quickstart / launch ---------- */
+.qs-line { padding: 3px 0; }
+.qs-line .p { color: var(--t-amber); }
+.launch-btn {
+  display: block; text-align: center;
+  border: 1px solid var(--t-amber);
+  color: var(--t-amber);
+  padding: 14px 10px; margin-top: 10px;
+  letter-spacing: 0.1em; font-size: 13px;
+  text-shadow: 0 0 8px var(--t-amber-dim);
+  transition: background 0.2s ease, color 0.2s ease, text-shadow 0.2s ease;
+}
+.launch-btn:hover { background: var(--t-amber); color: #0a0a06; text-shadow: none; }
+.launch-btn.solid { background: var(--t-amber); color: #0a0a06; text-shadow: none; font-weight: 700; }
+.launch-btn.solid:hover { box-shadow: 0 0 30px var(--t-amber-dim); }
+
+/* ---------- footer strip ---------- */
+.term-footer {
+  border-top: 1px solid var(--t-border);
+  padding: 10px 16px 16px;
+  font-size: 10.5px; color: var(--t-muted); line-height: 1.7;
+}
+.term-footer .byline { color: var(--t-secondary); margin-bottom: 6px; }
+.term-footer a { color: var(--t-secondary); text-decoration: underline; }
