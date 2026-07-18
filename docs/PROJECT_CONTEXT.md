@@ -1,20 +1,20 @@
 # Project Context — Nivesh Terminal
 
 **Hand-off brief for any new session. Read this first, then the linked docs.**
-Last updated: 2026-07-18 · `main` @ `bcd020f`
+Last updated: 2026-07-18 · `main` @ `ef3d33b`
 
 ---
 
 ## 1 · Current progress
 
 ```
-Current milestone      M2d COMPLETE
-Next milestone         M3 — Feature Engine + AnalyticResult + One Year Return
+Current milestone      M3 COMPLETE
+Next milestone         M4 — REST API + frontend strangler cutover
 Current branch         main
-Latest merge           PR #3  (7 commits)
-Checkpoint tag         v0.1-walking-skeleton  → bcd020f
-Tests                  125 passing
-Runtime dependencies   0
+Latest merge           M3 compute slice + PROJECT_CONTEXT
+Checkpoint tag         v0.1-walking-skeleton  → bcd020f  (L1–L5 only; see warning below)
+Tests                  173 passing
+Runtime dependencies   0   (hypothesis is dev-only, ED-010)
 ```
 
 **Completed**
@@ -26,17 +26,18 @@ Runtime dependencies   0
 ✓ M2b  Raw store   (L2)    RawStore port + FilesystemObjectStore
 ✓ M2c  Validation  (L3-L4) fail-closed gate + normalization
 ✓ M2d  Repository  (L5)    MarketDataRepository + SQLite backend
+✓ M3   Compute     (L6-L7) close-price-series feature (C3 seam) + one_year_return
+                           → AnalyticResult; methodology catalog populated
 ```
 
 **Remaining**
 
 ```
-□ M3   Compute     (L6-L7) feature + one_year_return engine → AnalyticResult
 □ M4   Serve       (L9-L10) REST API + frontend strangler cutover
 □ M5   Orchestration        DAG + recompute-from-raw RTO measurement
 ```
 
-> ⚠️ **The Walking Skeleton is NOT finished** — 5/10 layers, 6/9 milestones. The tag
+> ⚠️ **The Walking Skeleton is NOT finished** — 7/10 layers, 7/9 milestones. The tag
 > `v0.1-walking-skeleton` marks the **ingest half** (L1–L5). Phase 0.5's Definition of Done is
 > still unmet: the recompute-RTO number does not exist (M5) and the strangler is not proven live
 > (M4). Do not read the tag name as completion.
@@ -86,9 +87,9 @@ Data flows **down**; dependencies point only **up**. Nothing skips a layer.
               │
         L8   AI Layer             ⬜  Phase 7
               │
-        L7   Analytics Engines    ⬜  M3
+        L7   Analytics Engines    ✅  one_year_return → AnalyticResult
               │
-        L6   Feature Engineering  ⬜  M3
+        L6   Feature Engineering  ✅  close_price_series (the C3 seam)
               │
         L5   Domain Store         ✅  MarketDataRepository + SQLite
               │
@@ -141,7 +142,7 @@ Accepted cost: the S3 and Postgres code paths are unexercised until deploy,
 4. **Do not make architectural assumptions.** When a decision is genuinely the user's, present
    2–3 options with trade-offs plus a recommendation, then wait.
 5. **Architectural change → ADR** (`docs/architecture/18-…`; next id **ADR-0021**, unused).
-   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-010**).
+   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-011**).
    *Threshold:* does it change architecture, boundaries, public contracts, maintainability or
    deployment model, or require a **migration** if reversed? If not, it is an ED.
 
@@ -208,11 +209,12 @@ docs/
     REVIEW-…                  the adversarial reviews that produced v2.0
   implementation/             living, implementation tier
     00-walking-skeleton-plan.md    milestone plan + decision log
-    01-engineering-decisions.md    ED-001…ED-009
-    02-methodology-catalog.md      formula home — EMPTY, first entry in M3
+    01-engineering-decisions.md    ED-001…ED-010
+    02-methodology-catalog.md      formula home — close_price_series v1,
+                                   one-year-total-return v1 (+ golden seeding record)
     03-walking-skeleton-status.md  status snapshot (regenerate, don't hand-edit)
 
-backend/                      the layered app (42 modules, 125 tests)
+backend/                      the layered app (45 modules, 173 tests)
   platform/                   kernel: InstrumentId
   providers/ports/            PriceHistoryPort, error taxonomy
   providers/yfinance/         the ONLY place vendor code may appear
@@ -220,7 +222,9 @@ backend/                      the layered app (42 modules, 125 tests)
                               validation (L3), normalization (L4)
   domain/model/               quantities (Money/IndexLevel), instruments, observations
   domain/market_data/         schema, repository port, sqlite_repository
-  features/ analytics/ api/ orchestration/    ← EMPTY, awaiting M3/M4/M5
+  features/                   L6: returns.py — close_price_series, the C3 seam
+  analytics/                  L7: one_year_return.py → AnalyticResult
+  api/ orchestration/         ← EMPTY, awaiting M4/M5
 
 tools/ci/                     the three architecture guardrails + tests
 tools/skeleton_status.py      live status board (`make skeleton`)
@@ -256,32 +260,39 @@ make skeleton    # live status board + real end-to-end trace
 
 ---
 
-## 11 · Next milestone — M3 · Compute slice (L6–L7)
+## 11 · Next milestone — M4 · Serve slice (L9–L10)
 
-**Objective:** one versioned feature and one traced engine, proving a metric is reproducible and
-fully traceable. **Gate to next:** *metric reproducible + traced.*
+**Objective:** one OpenAPI-first endpoint that projects the `AnalyticResult` into a DTO, rendered
+live in the existing site beside the snapshot JSON. **Gate to next:** *strangler proven live.*
 
 **Build**
-- **L6 feature** — adjusted-close return-series inputs as a **versioned, lineage-carrying**
-  feature definition. **The single decimal→float conversion happens here (C3).**
-- **L7 engine** — `one_year_return` producing an **`AnalyticResult` envelope**: value, inputs
-  referenced, feature + formula + reference-snapshot versions, `as_of`, quality flags, lineage
-  handle. Pure and deterministic. **Missing inputs ⇒ `Unavailable` with a reason, never zero.**
-  Engines read **features only**, never repositories.
-- **Methodology catalog entry** (`docs/implementation/02-…`) for the 1Y-return formula:
-  definition, assumptions, **limitations**, `formula_version`.
-- **Tests** (doc 11): reference values **plus** property-based tests **plus** an **independent
-  reference implementation** with a documented numeric-tolerance policy. A **golden-master may
-  only be seeded after** reference-implementation parity and property tests pass — a golden must
-  never enshrine a first-write bug.
+- **L9 API** — one typed, contract-first endpoint:
+  `GET /v1/instruments/{id}/metrics/one-year-return`. Returns the metric as a **DTO projection**
+  (never the domain object), plus a **lineage reference** and **freshness** (`as_of` /
+  `computed_at`). Single public tier — no entitlements. FastAPI + Pydantic (ED-002).
+- **L10 Frontend** — the existing Next.js app renders that one endpoint's value, a minimal
+  "why?" (lineage), and freshness, **alongside** the current snapshot JSON without breaking it.
+  This *is* the strangler proof (ADR-0020).
+- **Tests** — contract tests against the OpenAPI spec; the `Unavailable` path must render as
+  absence-with-a-reason, not a blank or a zero.
 
-**Do NOT build in M3:** more metrics or features; scoring; any other engine; the API (M4); the
+**Carried in from M3 — decide before the DTO is designed:**
+1. **Lineage volume.** Every `AnalyticResult` carries an `ObservationRef` for every input
+   observation (400 for a 400-bar series) though the metric uses two. Serializing that whole
+   block per response is heavy. Options: distinguish contributing from scanned inputs, or use
+   doc 08's batch-granularity lineage for bulk runs. Touches the envelope shape → doc 04 owns it.
+2. **The anchor offset is encoded in a flag string** (`anchor-offset-days:-3`). A DTO consumer
+   must parse a tag to recover a number. A structured field would be cleaner, but again the
+   envelope's shape is doc 04's.
+3. **`UnknownInstrument`** now raises from the feature layer — the endpoint should map it to 404,
+   distinct from a 200 carrying `Unavailable`.
+
+**Do NOT build in M4:** more endpoints or metrics; entitlement tiers; async engine handles; the
 DAG or recompute timing (M5); AI (Phase 7); as-of query machinery (Phase 6).
 
-**Prior art:** the prototype's math in `shared/calculations.py` is a *reference*, not a source to
-copy — it is **ported behind the engine contract**, versioned and lineage-emitting (ADR-0014).
-
----
+**Note (ADR-0020):** the skeleton is allowed *one* disposable endpoint as its single exception to
+"no API before the hardened domain model". It is re-cut on the hardened model in Phase 1 and is
+tracked as debt. No other exception is permitted.
 
 ## 12 · Conventions
 
