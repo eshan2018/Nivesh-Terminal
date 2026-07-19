@@ -1,7 +1,7 @@
 # Project Context — Nivesh Terminal
 
 **Hand-off brief for any new session. Read this first, then the linked docs.**
-Last updated: 2026-07-18 · `main` @ `ef3d33b`
+Last updated: 2026-07-19 · `main` @ `4c0e5d5`
 
 ---
 
@@ -256,7 +256,88 @@ make skeleton    # live status board + real end-to-end trace
 
 ---
 
-## 11 · Next milestone — M4 · Serve slice (L9–L10)
+## 11 · Pre-M4 open design decisions — **AWAITING APPROVAL**
+
+Two questions the M3 code review raised that M3 could defer and M4 cannot. Both are invisible
+until something serializes the `AnalyticResult`; M4 is the first thing that does. Both are
+recorded here rather than left in conversation so the next engineer does not have to reconstruct
+the reasoning.
+
+**Both options A extend the envelope.** [Doc 04](architecture/04-canonical-domain-model.md) owns
+the envelope's shape and [doc 08](architecture/08-analytics-framework.md) may not alter it.
+[ADR-0014](architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines)'s
+revisit clause pre-authorizes *additive* extension ("If the envelope proves insufficient for a new
+analytic class, extend it additively (owned by doc 04, ADR-0004)"). **A prior classification call
+is therefore required:** if additive extension counts as spending that clause, each is an
+**Engineering Decision (ED-011/ED-012)**; if it counts as amending a canonical entity, it needs
+**ADR-0021**. Recommendation: ED, citing the ADR-0014 clause — no boundary, contract direction, or
+migration is involved, and reversal is a field deletion.
+
+---
+
+### Decision 1 — Lineage granularity in a served result
+
+**Context.** `AnalyticResult.lineage.features[].inputs` currently carries one `ObservationRef`
+(instrument id, `event_time`, `knowledge_time`, full `Provenance`) for **every observation the
+feature scanned**. A 400-bar series produces 400 of them. The engine reads exactly **two**: the
+anchor and the end bar. Serializing that into a DTO makes a single-metric response several
+kilobytes of lineage the caller cannot use, and materializing results (doc 07) multiplies it.
+
+**Option A — distinguish contributing inputs from scanned inputs (recommended).**
+The engine names the observations that actually determined the value; the response carries those
+plus a scanned count plus the de-duplicated raw object keys.
+- *For:* response stays proportional to the answer, not the history. The "why?" panel shows the
+  two bars that produced the number — which is what a user asking "why?" actually wants.
+  Recomputability survives: raw object keys, feature version and feature parameters are all
+  still pinned, so the series can be rebuilt and the result re-derived.
+- *Against:* requires a small additive envelope field. Shifts the recomputability argument from
+  "here is every input" to "here is how to rebuild every input" — weaker on paper, though
+  ADR-0017's *recomputable* tier asks for reproducibility, not an inline copy of the inputs.
+
+**Option B — serve the full scanned set.**
+- *For:* maximal literal traceability; no envelope change; no new concept.
+- *Against:* payload grows without bound as history grows; the differentiator becomes a
+  performance problem exactly where users first meet it.
+
+**Option C — lineage by reference (a second endpoint returns the full chain).**
+- *For:* smallest response; doc 10 explicitly sanctions it ("expose **or link to** the
+  `AnalyticResult` envelope").
+- *Against:* a second endpoint, which M4's own fence forbids. **This is the likely Phase-1
+  shape** — A is forward-compatible with it.
+
+**Status: awaiting approval.** Recommendation: **A**, with C as the Phase-1 successor.
+
+---
+
+### Decision 2 — Anchor-offset representation
+
+**Context.** When the one-year target date has no bar, the engine uses the nearest bar within
+7 days and publishes the actual offset as the string `anchor-offset-days:-3` inside
+`quality_flags` — a tuple of otherwise-opaque tags (`stale-series`, `reference-version-drift`).
+Recovering the number means string-parsing a flag.
+
+**Option A — typed diagnostics field; flags stay opaque tags (recommended).**
+- *For:* `quality_flags` keeps one meaning (a set of tags you test membership in). The offset
+  becomes a typed JSON number. Any consumer treating flags as opaque — the correct reading —
+  stops silently dropping the information.
+- *Against:* additive envelope field (see classification note above).
+
+**Option B — keep it in the flag string; the DTO parses it out.**
+- *For:* no envelope change.
+- *Against:* puts parsing logic at the API edge, which doc 10 forbids ("the API is a thin,
+  validated projection"). Every future consumer reimplements the same split.
+
+**Option C — drop the offset from the response.**
+- *For:* simplest.
+- *Against:* the caller can no longer tell a 365-day window from a 368-day one. The methodology
+  catalog lists that approximation as a mandatory limitation; hiding it at the API contradicts
+  the entry.
+
+**Status: awaiting approval.** Recommendation: **A**.
+
+---
+
+## 12 · Next milestone — M4 · Serve slice (L9–L10)
 
 **Objective:** one OpenAPI-first endpoint that projects the `AnalyticResult` into a DTO, rendered
 live in the existing site beside the snapshot JSON. **Gate to next:** *strangler proven live.*
@@ -290,7 +371,7 @@ DAG or recompute timing (M5); AI (Phase 7); as-of query machinery (Phase 6).
 "no API before the hardened domain model". It is re-cut on the hardened model in Phase 1 and is
 tracked as debt. No other exception is permitted.
 
-## 12 · Conventions
+## 13 · Conventions
 
 - **Commits** — small, per-milestone; `type(scope): summary`; body explains what and why; footer
   cites the architecture docs, ADRs and EDs satisfied. Gate must be green at each commit.
