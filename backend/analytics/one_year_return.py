@@ -28,7 +28,12 @@ from datetime import datetime, timedelta
 
 from backend.domain.model.analytics import AnalyticResult, LineageHandle
 from backend.domain.model.quantities import Ratio
-from backend.features.returns import ClosePriceSeries, PricePoint
+from backend.features.returns import (
+    ClosePriceSeries,
+    ClosePriceSeriesProvider,
+    PricePoint,
+)
+from backend.platform.identifiers import InstrumentId
 
 METRIC_ID = "one_year_return"
 FORMULA_VERSION = "one-year-total-return/v1"
@@ -51,9 +56,11 @@ INSUFFICIENT_HISTORY = "insufficient-history-for-a-one-year-window"
 NO_ANCHOR_IN_TOLERANCE = "no-observation-within-tolerance-of-the-one-year-anchor"
 ZERO_ANCHOR_PRICE = "anchor-price-is-zero-so-the-return-is-undefined"
 
-#: The anchor bar was not exactly 365 days before the latest bar. Emitted with the
-#: actual offset in days, so the consumer can see how approximate the window is.
-ANCHOR_OFFSET_FLAG = "anchor-offset-days"
+#: How far the anchor bar sat from the exact one-year target, in days (signed: negative
+#: means earlier than the target). Reported as a typed diagnostic rather than encoded in
+#: a quality flag, so consumers read a number instead of parsing a string
+#: (PROJECT_CONTEXT §11, Decision 2).
+ANCHOR_OFFSET_DAYS = "anchor_offset_days"
 
 
 def one_year_return(series: ClosePriceSeries, *, computed_at: datetime) -> AnalyticResult:
@@ -90,7 +97,8 @@ def one_year_return(series: ClosePriceSeries, *, computed_at: datetime) -> Analy
     if len(series.points) < 2:
         return unavailable(INSUFFICIENT_HISTORY)
 
-    end = series.points[-1]
+    end_index = len(series.points) - 1
+    end = series.points[end_index]
     target = end.event_time - LOOKBACK
 
     # Distinguish "the series does not reach back a year" from "it does, but there is a
@@ -100,16 +108,20 @@ def one_year_return(series: ClosePriceSeries, *, computed_at: datetime) -> Analy
     if series.points[0].event_time > target + ANCHOR_TOLERANCE:
         return unavailable(INSUFFICIENT_HISTORY)
 
-    start = _anchor(series.points, target)
-    if start is None:
+    start_index = _anchor_index(series.points, target)
+    if start_index is None:
         return unavailable(NO_ANCHOR_IN_TOLERANCE)
+    start = series.points[start_index]
     if start.price == 0.0:
         return unavailable(ZERO_ANCHOR_PRICE)
 
+    # Name the two bars that actually produced the number. The rest of the series was
+    # scanned to find them, but a reader asking "why this value?" wants these two —
+    # and a response carrying all of them grows with history rather than with the
+    # answer (PROJECT_CONTEXT §11, Decision 1).
+    contributing = (series.input_for(start_index), series.input_for(end_index))
+
     offset_days = round((start.event_time - target).total_seconds() / 86400)
-    flags = set(series.quality_flags)
-    if offset_days != 0:
-        flags.add(f"{ANCHOR_OFFSET_FLAG}:{offset_days}")
 
     return AnalyticResult.available(
         metric_id=METRIC_ID,
@@ -119,19 +131,47 @@ def one_year_return(series: ClosePriceSeries, *, computed_at: datetime) -> Analy
         reference_version=series.reference_version,
         as_of=series.as_of,
         computed_at=computed_at,
-        quality_flags=tuple(sorted(flags)),
-        lineage=lineage,
+        quality_flags=series.quality_flags,
+        diagnostics=((ANCHOR_OFFSET_DAYS, float(offset_days)),),
+        lineage=LineageHandle(features=(series.lineage,), contributing=contributing),
     )
 
 
-def _anchor(points: tuple[PricePoint, ...], target: datetime) -> PricePoint | None:
-    """The point nearest `target`, or `None` if the nearest is outside tolerance.
+def one_year_return_for(
+    instrument_id: InstrumentId,
+    provider: ClosePriceSeriesProvider,
+    *,
+    as_of: datetime,
+    computed_at: datetime,
+) -> AnalyticResult:
+    """L7's published interface: an instrument in, a traced result out.
 
-    Ties break toward the earlier bar. The tie-break is arbitrary but must be *fixed*:
-    an unspecified one would make the metric non-deterministic on evenly spaced data,
-    which weekly bars produce routinely.
+    Doc 03 grants L9 access to L7 and L7 access to L6, so this is where an instrument
+    is turned into the feature the pure core consumes. `provider` is L6's published
+    contract already bound to a repository (`features.returns.close_price_series_provider`),
+    which is why no repository handle reaches this layer — doc 08's "repository access
+    belongs to the feature layer alone" holds literally, not merely by convention.
+
+    `one_year_return` above remains the pure deterministic core (doc 08); this is the
+    invocable interface around it. Both are versioned by the same `FORMULA_VERSION`
+    because they compute the same thing.
+    """
+    return one_year_return(provider(instrument_id, as_of), computed_at=computed_at)
+
+
+def _anchor_index(points: tuple[PricePoint, ...], target: datetime) -> int | None:
+    """Index of the point nearest `target`, or `None` if it is outside tolerance.
+
+    Returns an index rather than the point so the caller can cross to the canonical
+    observation behind it (the series' index invariant) and report it as a contributing
+    input. Ties break toward the earlier bar — arbitrary, but it must be *fixed*: an
+    unspecified tie-break would make the metric non-deterministic on evenly spaced
+    data, which weekly bars produce routinely.
     """
     if not points:
         return None
-    nearest = min(points, key=lambda p: (abs(p.event_time - target), p.event_time))
-    return nearest if abs(nearest.event_time - target) <= ANCHOR_TOLERANCE else None
+    index = min(
+        range(len(points)),
+        key=lambda i: (abs(points[i].event_time - target), points[i].event_time),
+    )
+    return index if abs(points[index].event_time - target) <= ANCHOR_TOLERANCE else None

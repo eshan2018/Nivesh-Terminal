@@ -56,7 +56,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 3. **The Configuration Source is authoritative for reproducibility.** The prose here explains
    *why*; the config file is the *what* that CI/deploys actually consume.
 4. **No duplication with ADRs.** An ED cites the ADR it realizes; it does not re-decide it.
-5. **IDs are permanent and never reused;** next id is **ED-011**.
+5. **IDs are permanent and never reused;** next id is **ED-014**.
 
 ---
 
@@ -65,7 +65,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 |----|-------|--------|----------|
 | [ED-001](#ed-001--backend-language--runtime) | Backend language & runtime — Python 3.12 | Accepted | ADR-0014/0016, doc 12 |
 | [ED-002](#ed-002--api-framework) | API framework — FastAPI + Pydantic | Accepted | ADR-0012, doc 10 |
-| [ED-003](#ed-003--postgresql-deployment-realization) | PostgreSQL realization — `MarketDataRepository` port; SQLite dev backend, Postgres in prod | Accepted (rev. 2026-07-17) | ADR-0008, doc 07/12 |
+| [ED-003](#ed-003--postgresql-deployment-realization) | PostgreSQL realization — `MarketDataRepository` port; SQLite dev backend, Postgres in prod | Accepted (rev. 2026-07-19) | ADR-0008, doc 07/12 |
 | [ED-004](#ed-004--object-storage-realization) | Object-storage realization — `RawStore` port; filesystem dev backend, S3 in prod | Accepted (rev. 2026-07-17) | ADR-0009, doc 07/17 |
 | [ED-005](#ed-005--orchestrator-product) | Orchestrator product | Proposed | doc 16, ADR-0010 |
 | [ED-006](#ed-006--backend-cloud-vendor) | Backend cloud vendor | Proposed | doc 12 |
@@ -73,6 +73,9 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | [ED-008](#ed-008--architecture-guardrail-implementation) | Architecture guardrail lints — custom AST checks | Accepted | doc 03/06, ADR-0002/0003/0005 |
 | [ED-009](#ed-009--linterformatter) | Linter/formatter — ruff | Accepted | doc 11 |
 | [ED-010](#ed-010--property-based-testing-library) | Property-based testing — hypothesis (dev-only) | Accepted | doc 11 (B10) |
+| [ED-011](#ed-011--application-composition-by-constructor-injection) | Application composition by constructor injection | Accepted | doc 02 (principle 5), doc 03, ADR-0005 |
+| [ED-012](#ed-012--lineage-granularity-in-a-served-result) | Lineage granularity — contributing inputs + scanned count | Accepted | doc 04, ADR-0014/0017 |
+| [ED-013](#ed-013--typed-diagnostics-on-the-analyticresult-envelope) | Typed diagnostics on the envelope | Accepted | doc 04, ADR-0014 |
 
 ---
 
@@ -144,6 +147,29 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
   `backend/domain/market_data/schema.py` (the schema); IaC/Terraform + secret store for the
   production instance, added at deploy.
 - **Related Architecture Documents:** [ADR-0008](../architecture/18-architecture-decision-records.md#adr-0008--postgresql-as-the-primary-system-of-record), [ADR-0003](../architecture/18-architecture-decision-records.md#adr-0003--modular-monolith-with-module-owned-schemas), [doc 04](../architecture/04-canonical-domain-model.md), [doc 07](../architecture/07-database-design.md), [doc 12](../architecture/12-deployment-strategy.md).
+
+> **Revision 2026-07-19 (M4a) — concurrency.** M2d built this backend for a single-threaded
+> batch pipeline and documented it as not thread-safe. M4's serving plane invalidated that:
+> a threaded ASGI worker calls the repository from arbitrary threads, and SQLite connections
+> are thread-affine. The backend now opens with `check_same_thread=False` and serializes every
+> statement through a lock (pinned by `backend/tests/domain/test_repository_concurrency.py`).
+>
+> **This is deliberately a development implementation choice, not a scalability strategy.**
+> The lock makes one connection *safe*; it does not make the backend *concurrent* — every read
+> and write is serialized, so throughput is single-threaded by construction. That is the right
+> trade for a dev/CI backend whose job is exercising real DDL, real schema and exact decimal
+> round-trips, and it is why SQLite could not serve production traffic with or without the lock.
+>
+> **It does not become a permanent bottleneck, because it does not travel.** The lock lives in
+> `SqliteMarketDataRepository` — one of two implementations of the `MarketDataRepository` port.
+> PostgreSQL (ADR-0008) uses a connection pool and no application-level lock. The port, the
+> feature layer and the API hold no lock of their own and are unchanged by the swap.
+>
+> **Additional accepted cost:** concurrency behaviour is now also unproven until deploy.
+> Serving-plane load characteristics measured against SQLite will not transfer to Postgres, so
+> the doc 11 load tier and the Phase 0.5 recompute-RTO number must be re-measured against the
+> real backend rather than extrapolated from local runs.
+
 
 ### ED-004 · Object-storage realization
 - **Status:** Accepted *(revised 2026-07-17; production vendor finalized at first deploy)*
@@ -281,6 +307,84 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
   `backend/tests/conftest.py` (the hermetic profile).
 - **Related Architecture Documents:** [doc 11](../architecture/11-testing-strategy.md); complements [ED-007](#ed-007--test-framework) (pytest).
 
+### ED-011 · Application composition by constructor injection
+- **Status:** Accepted
+- **Context:** M4 needs a repository (L5) → feature (L6) → engine (L7) assembled to serve one
+  metric. Reading the dependency map alone suggests no layer may do this: [doc 03](../architecture/03-system-architecture.md) grants L9 only
+  L7 and L8, [doc 08](../architecture/08-analytics-framework.md) forbids engines from touching repositories, and nothing may import
+  orchestration. This was initially raised as an architectural conflict warranting an ADR.
+  **Re-reading the architecture against intent showed it is not one.** [Doc 02](../architecture/02-engineering-principles.md) principle 5
+  governs what a layer may *depend on* — "only the layer directly beneath it **(via that layer's
+  published contract)**" — and is silent on who *constructs* objects. Its stated concern is
+  reach-arounds: the frontend reading the database, AI reading providers, analytics reading raw
+  payloads. Being handed an already-built collaborator is not a reach-around.
+- **Decision:** **Layers receive their collaborators as parameters; construction happens at the
+  process entry point.** Concretely: L6 exposes `close_price_series_provider(repository)`, binding
+  the repository inside the only layer permitted to hold one; L7 exposes
+  `one_year_return_for(instrument_id, provider, …)`, consuming L6's published contract without
+  ever seeing a repository; L9's `create_app(metric_service, clock=…)` takes the composed service
+  and the clock. **No layer imports a concrete implementation from another layer**, and the
+  dependency lint is unchanged — `api → features` and `api → domain` still fail, as they should.
+- **Alternatives Considered:** *widen the map so `api` may import `features`/`domain`* — reopens
+  the reach-around [doc 08](../architecture/08-analytics-framework.md) deliberately closed in v2.0; *a `composition.py` inside `backend/`
+  exempt from the layer rule* — a new architectural concept for a problem plain injection solves;
+  *compose inside the engine* — violates [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines) outright; *a composition root under `tools/`* —
+  passes the lint on a technicality (it scans `backend/` only) while putting product code in a
+  package `pyproject.toml` declares to be repo tooling.
+- **Consequences:** The layer rule holds literally, not by convention — verified by the lint
+  refusing the two forbidden imports. Dependency injection was already this codebase's practice
+  (`YFinanceAdapter(fetcher=…)`, `build_close_price_series(repository, …)`), so this records an
+  existing convention rather than introducing one; ports/adapters ([ADR-0005](../architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters)) implies it. **No
+  production entry point exists yet:** M4a ships the endpoint with composition performed in test
+  fixtures, because binding a concrete repository is deployment work, deferred with M4b/M5.
+  Reversal is a refactor, not a migration — the ED threshold.
+- **Configuration Source:** `backend/features/returns.py` (`close_price_series_provider`),
+  `backend/analytics/one_year_return.py` (`one_year_return_for`), `backend/api/app.py`
+  (`create_app`), `tools/ci/architecture_map.py` (unchanged).
+- **Related Architecture Documents:** [doc 02](../architecture/02-engineering-principles.md) principle 5, [doc 03](../architecture/03-system-architecture.md), [doc 08](../architecture/08-analytics-framework.md), [ADR-0005](../architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters).
+
+### ED-012 · Lineage granularity in a served result
+- **Status:** Accepted
+- **Context:** `AnalyticResult.lineage` carried one `ObservationRef` for every observation the
+  feature scanned — 400 for a 400-bar series — where the engine reads two. Serializing that makes
+  a single-metric response kilobytes of lineage a client cannot use, growing with history rather
+  than with the answer. Recorded as [PROJECT_CONTEXT](../PROJECT_CONTEXT.md) §11 Decision 1; approved 2026-07-19.
+- **Decision:** The engine names the observations that **actually determined the value**
+  (`LineageHandle.contributing`); the scanned set stays available in-process and is summarized on
+  the wire as `scanned_count`. An additive envelope field, spending [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines)'s revisit clause
+  ("extend it additively"), which is why this is an ED and not ADR-0021.
+- **Alternatives Considered:** *serve the full scanned set* — unbounded payload growth; *lineage
+  by reference via a second endpoint* — [doc 10](../architecture/10-api-design.md) sanctions it ("expose **or link to**") and it is the
+  likely Phase-1 shape, but M4's fence permits exactly one endpoint. The chosen shape is
+  forward-compatible with it.
+- **Consequences:** Response size tracks the answer. Recomputability is preserved — feature
+  version, feature parameters and raw payload handles are all still pinned, so the series can be
+  rebuilt and the result re-derived ([ADR-0017](../architecture/18-architecture-decision-records.md#adr-0017--first-class-lineage-with-three-guarantee-tiers) *recomputable* tier). The engine now depends on
+  the series' index invariant (`points[i]` ↔ `lineage.inputs[i]`), which is pinned by a test.
+- **Configuration Source:** `backend/domain/model/analytics.py` (`LineageHandle`),
+  `backend/api/dto.py` (`LineageDTO`).
+- **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md), [doc 10](../architecture/10-api-design.md), [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines), [ADR-0017](../architecture/18-architecture-decision-records.md#adr-0017--first-class-lineage-with-three-guarantee-tiers).
+
+### ED-013 · Typed diagnostics on the `AnalyticResult` envelope
+- **Status:** Accepted
+- **Context:** The engine reported how far the anchor bar sat from the one-year target by encoding
+  a number inside a quality flag (`anchor-offset-days:-3`). `quality_flags` is otherwise a set of
+  opaque tags, so recovering the number meant string-parsing — at the API edge, which [doc 10](../architecture/10-api-design.md)
+  forbids ("the API is a thin, validated projection"). Recorded as [PROJECT_CONTEXT](../PROJECT_CONTEXT.md) §11
+  Decision 2; approved 2026-07-19.
+- **Decision:** A typed `diagnostics: tuple[tuple[str, float], ...]` field on the envelope,
+  serialized as a JSON object. `quality_flags` returns to being purely opaque tags. Additive, per
+  the same [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines) clause as ED-012.
+- **Alternatives Considered:** *keep it in the flag string* — pushes parsing to every consumer;
+  *drop the offset* — the methodology catalog lists anchor approximation as a mandatory
+  limitation, so hiding it at the API would contradict the published entry.
+- **Consequences:** Consumers treating flags as opaque — the correct reading — no longer silently
+  drop the information. Sorted pairs rather than a dict keep the frozen envelope hashable and
+  comparison deterministic.
+- **Configuration Source:** `backend/domain/model/analytics.py` (`AnalyticResult.diagnostics`),
+  `backend/analytics/one_year_return.py` (`ANCHOR_OFFSET_DAYS`).
+- **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md), [doc 08](../architecture/08-analytics-framework.md), [doc 10](../architecture/10-api-design.md), [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines).
+
 ---
 
 ## Change log
@@ -291,3 +395,5 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | 2026-07-17 | **ED-003 revised** (Proposed → Accepted): interface is a `MarketDataRepository` port; dev/CI backend is stdlib SQLite; production remains managed PostgreSQL; one schema shape across both. | Same environment reasoning as ED-004: ADR-0008 fixes the **deployed** system of record; the local backend is ED-tier. SQLite is stdlib, so it adds zero dependencies and no Docker while still exercising real DDL, schema, exact-decimal round-trip and durability. Accepted cost recorded: SQL dialect differences and Postgres-specific behaviour unproven until deploy. |
 | 2026-07-17 | **ED-004 revised** (Proposed → Accepted): interface is a provider-neutral `RawStore` port; dev/CI backend is a first-class `FilesystemObjectStore`; production remains S3-compatible object storage; key layout is backend-independent and S3-mapping. | Governance review determined object storage is architectural **for the deployed platform** (ADR-0009, unchanged), while the per-environment backend is ED-tier (doc 12 distinct environments). Applies the minimalism principle: no Docker/MinIO/boto3 until first deploy. Accepted cost recorded: S3 path unexercised until deploy; skeleton RTO is a local baseline. |
 | 2026-07-18 | **ED-010 recorded** during Milestone M3: hypothesis as the property-based testing library, dev-only, under a derandomized hermetic profile. | M3 is the first milestone with financial math, and doc 11 makes the property tier mandatory for it. Dev-only, so the zero-runtime-dependency position is unchanged. Next id: ED-011. |
+| 2026-07-19 | **ED-011…ED-013 recorded** during M4a: composition by constructor injection; contributing-input lineage; typed diagnostics. | ED-011 resolves what was first raised as an architectural conflict — re-reading doc 02 principle 5 showed it governs dependency, not construction, so no ADR was warranted and ADR-0021 remains unused. ED-012/013 spend ADR-0014's additive-extension clause. Next id: ED-014. |
+| 2026-07-19 | **ED-003 revised** (M4a): the SQLite dev backend is now thread-safe — `check_same_thread=False` plus a lock serializing every statement. | M2d's "single-threaded pipeline" assumption was invalidated by M4's serving plane; a threaded ASGI worker calls the repository from arbitrary threads. Recorded explicitly as a development implementation choice, not a scalability strategy: the lock serializes all access and does not travel to the Postgres implementation. New accepted cost: concurrency behaviour is unproven until deploy, so load and RTO numbers must be re-measured against Postgres. |

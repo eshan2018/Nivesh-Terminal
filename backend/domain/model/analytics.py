@@ -86,9 +86,23 @@ class FeatureRef:
 
 @dataclass(frozen=True, slots=True)
 class LineageHandle:
-    """The resolvable chain from a derived value back to raw records (ADR-0017)."""
+    """The resolvable chain from a derived value back to raw records (ADR-0017).
+
+    `features` names everything the engine was *given*; `contributing` names the
+    observations that actually determined the value. For a one-year return that is two
+    bars out of a multi-hundred-bar series — so the distinction is what keeps a served
+    response proportional to the answer rather than to the history behind it
+    (PROJECT_CONTEXT §11, Decision 1). Recomputability is unaffected: feature version,
+    feature parameters and raw object keys are all still pinned, so the full series can
+    be rebuilt and the result re-derived.
+    """
 
     features: tuple[FeatureRef, ...]
+    contributing: tuple[ObservationRef, ...] = ()
+
+    def scanned_count(self) -> int:
+        """How many observations the features supplied, contributing or not."""
+        return sum(len(feature.inputs) for feature in self.features)
 
     def raw_object_keys(self) -> tuple[str, ...]:
         """Every raw object this value derives from, de-duplicated and ordered.
@@ -124,6 +138,15 @@ class AnalyticResult:
     computed_at: datetime
     quality_flags: tuple[str, ...]
     lineage: LineageHandle
+    diagnostics: tuple[tuple[str, float], ...] = ()
+    """Typed numeric facts about how the value was reached — e.g. how far the anchor
+    bar sat from the requested date.
+
+    Separate from `quality_flags` on purpose (PROJECT_CONTEXT §11, Decision 2): a flag
+    is an opaque tag you test membership in, and encoding a number inside one forces
+    every consumer to string-parse it. Sorted pairs rather than a dict so the envelope
+    stays hashable and comparison stays deterministic.
+    """
 
     def __post_init__(self) -> None:
         if self.as_of.tzinfo is None or self.computed_at.tzinfo is None:
@@ -154,6 +177,7 @@ class AnalyticResult:
         as_of: datetime,
         computed_at: datetime,
         quality_flags: tuple[str, ...] = (),
+        diagnostics: tuple[tuple[str, float], ...] = (),
         lineage: LineageHandle,
     ) -> AnalyticResult:
         """A computed value, with the versions and inputs that produced it."""
@@ -169,6 +193,7 @@ class AnalyticResult:
             computed_at=computed_at,
             quality_flags=quality_flags,
             lineage=lineage,
+            diagnostics=diagnostics,
         )
 
     @classmethod

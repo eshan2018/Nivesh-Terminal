@@ -9,14 +9,22 @@ Exactness: monetary values are written as the `Decimal`'s text form and read bac
 with `Decimal(...)`, so money round-trips bit-exactly. No value ever passes through
 a binary float.
 
-Concurrency: a repository owns one connection and is not thread-safe, which matches
-the single-process pipeline the skeleton runs. A connection pool is a Postgres-era
-concern.
+Concurrency: one connection, shared under a lock. `check_same_thread=False` lifts
+SQLite's thread affinity and the lock supplies the serialization that removes — so a
+repository is safe to use from a threaded ASGI worker, which is how the serving plane
+(doc 03, L9) actually calls it. M2d assumed a single-threaded pipeline and said so;
+M4's API invalidated that assumption, and this is the correction.
+
+The lock serializes *all* access, which is the right trade for a dev/CI backend: SQLite
+has a single writer anyway, and correctness beats throughput on a backend that exists to
+exercise real DDL and exact-decimal round-trips. Real concurrency is a Postgres-era
+concern (ADR-0008), where a connection pool replaces both the lock and this class.
 """
 from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -69,8 +77,9 @@ class SqliteMarketDataRepository:
     """A `MarketDataRepository` backed by SQLite."""
 
     def __init__(self, database: Path | str = ":memory:") -> None:
-        self._connection = sqlite3.connect(str(database))
+        self._connection = sqlite3.connect(str(database), check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
+        self._lock = threading.Lock()
         with self._connection:
             for statement in ALL_DDL:
                 self._connection.execute(statement)
@@ -78,7 +87,8 @@ class SqliteMarketDataRepository:
     # ── lifecycle ─────────────────────────────────────────────────────────────
 
     def close(self) -> None:
-        self._connection.close()
+        with self._lock:
+            self._connection.close()
 
     def __enter__(self) -> SqliteMarketDataRepository:
         return self
@@ -98,7 +108,7 @@ class SqliteMarketDataRepository:
         if not rows:
             return 0
         placeholders = ", ".join(["?"] * 17)
-        with self._connection:
+        with self._lock, self._connection:
             cursor = self._connection.executemany(
                 f"INSERT OR IGNORE INTO {OBSERVATIONS_TABLE} ({_OBSERVATION_COLUMNS}) "
                 f"VALUES ({placeholders})",
@@ -109,8 +119,11 @@ class SqliteMarketDataRepository:
     def get_observations(
         self, instrument_id: InstrumentId, *, interval: str
     ) -> tuple[PriceObservation, ...]:
-        cursor = self._connection.execute(_SELECT_LATEST, (instrument_id.value, interval))
-        return tuple(self._observation_from_row(row) for row in cursor.fetchall())
+        with self._lock:
+            rows = self._connection.execute(
+                _SELECT_LATEST, (instrument_id.value, interval)
+            ).fetchall()
+        return tuple(self._observation_from_row(row) for row in rows)
 
     @staticmethod
     def _observation_row(observation: PriceObservation) -> tuple[object, ...]:
@@ -181,7 +194,7 @@ class SqliteMarketDataRepository:
         ]
         if not rows:
             return 0
-        with self._connection:
+        with self._lock, self._connection:
             cursor = self._connection.executemany(
                 f"INSERT OR IGNORE INTO {QUARANTINE_TABLE} (instrument_id, raw_object_key, "
                 "raw_timestamp, reasons, payload_json, quarantined_at, provider, "
@@ -191,10 +204,12 @@ class SqliteMarketDataRepository:
             return cursor.rowcount
 
     def get_quarantined(self, instrument_id: InstrumentId) -> tuple[QuarantineRecord, ...]:
-        cursor = self._connection.execute(
-            f"SELECT * FROM {QUARANTINE_TABLE} WHERE instrument_id = ? ORDER BY raw_timestamp",
-            (instrument_id.value,),
-        )
+        with self._lock:
+            cursor = self._connection.execute(
+                f"SELECT * FROM {QUARANTINE_TABLE} WHERE instrument_id = ? "
+                "ORDER BY raw_timestamp",
+                (instrument_id.value,),
+            ).fetchall()
         return tuple(
             QuarantineRecord(
                 instrument_id=InstrumentId(row["instrument_id"]),
@@ -209,7 +224,7 @@ class SqliteMarketDataRepository:
                     reference_version=row["reference_version"],
                 ),
             )
-            for row in cursor.fetchall()
+            for row in cursor
         )
 
 
