@@ -56,7 +56,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 3. **The Configuration Source is authoritative for reproducibility.** The prose here explains
    *why*; the config file is the *what* that CI/deploys actually consume.
 4. **No duplication with ADRs.** An ED cites the ADR it realizes; it does not re-decide it.
-5. **IDs are permanent and never reused;** next id is **ED-015**.
+5. **IDs are permanent and never reused;** next id is **ED-016**.
 
 ---
 
@@ -77,6 +77,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | [ED-012](#ed-012--lineage-granularity-in-a-served-result) | Lineage granularity — contributing inputs + scanned count | Accepted | doc 04, ADR-0014/0017 |
 | [ED-013](#ed-013--typed-diagnostics-on-the-analyticresult-envelope) | Typed diagnostics on the envelope | Accepted | doc 04, ADR-0014 |
 | [ED-014](#ed-014--strangler-seam--server-side-proxy-rather-than-cors) | Strangler seam — server-side proxy, not CORS | Accepted | ADR-0020, doc 10/13 |
+| [ED-015](#ed-015--skeleton-orchestration--stdlib-dag-orchestrator-product-deferred) | Skeleton orchestration — stdlib DAG; orchestrator product deferred | Accepted | doc 16, ED-005 |
 
 ---
 
@@ -417,6 +418,35 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 - **Configuration Source:** `web/app/api/metrics/one-year-return/route.ts`; `NIVESH_API_BASE_URL`.
 - **Related Architecture Documents:** [ADR-0020](../architecture/18-architecture-decision-records.md#adr-0020--walking-skeleton-first-strangle-the-prototype), [doc 10](../architecture/10-api-design.md), [doc 15](../architecture/15-development-roadmap.md).
 
+### ED-015 · Skeleton orchestration — stdlib DAG, orchestrator product deferred
+- **Status:** Accepted
+- **Context:** M5 needs the ingest pipeline to run as a declared DAG with idempotent, keyed tasks
+  and runs recorded as lineage events ([doc 16](../architecture/16-data-orchestration-and-freshness.md)). [ED-005](#ed-005--orchestrator-product) proposes Dagster but has never been
+  accepted. The question was whether Phase 0.5 requires the product.
+- **Decision:** **Implement the DAG as a stdlib task graph** (`backend/orchestration/pipeline.py`);
+  keep [ED-005](#ed-005--orchestrator-product) at `Proposed`. **No orchestration framework is introduced.**
+- **Why this does not contradict doc 16:** doc 16 owns the orchestration *model* and says
+  explicitly that "the specific product is a doc 12 selection, **not an application-layer
+  concern**", and bans ad-hoc cron only "**above** the walking skeleton (doc 15 Phase 0.5)" —
+  carving out the skeleton by name. [Doc 00 §B4](00-walking-skeleton-plan.md) is narrower still: the skeleton "only proves the
+  DAG **shape** works". The model's requirements are met — declared task order, tasks keyed by
+  (type, scope, window, config version), idempotent by construction, runs recorded with code,
+  config and reference-snapshot versions.
+- **Alternatives Considered:** *adopt Dagster now* — a substantial runtime dependency, a daemon
+  and a UI to sequence five tasks in one process, with no scheduling, retry or backfill
+  requirement in Phase 0.5; rejected under principle 18 and the minimalism principle. *Ad-hoc
+  cron* — explicitly banned above the skeleton and pointless within it.
+- **Consequences:** Runtime dependencies stay at one direct package; the DAG is testable
+  hermetically with no service. **What the stdlib version does not provide, and which will force
+  this decision to be revisited:** cross-process scheduling, retry/backoff and dead-lettering per
+  the doc 06 error taxonomy, first-class backfill windows, and the invalidation cascade with a
+  concurrency budget (C5). The first milestone that genuinely needs any of those adopts the
+  product — the same pattern by which [ED-003](#ed-003--postgresql-deployment-realization) deferred PostgreSQL and [ED-004](#ed-004--object-storage-realization) deferred S3:
+  the *model* is architectural and honoured now; the *product* is a deployment selection.
+- **Configuration Source:** `backend/orchestration/pipeline.py`, `backend/orchestration/recompute.py`,
+  `tools/recompute_rto.py`, `Makefile` (`make recompute`).
+- **Related Architecture Documents:** [doc 16](../architecture/16-data-orchestration-and-freshness.md), [doc 12](../architecture/12-deployment-strategy.md), [doc 15](../architecture/15-development-roadmap.md); complements [ED-005](#ed-005--orchestrator-product) (still `Proposed`).
+
 ---
 
 ## Change log
@@ -430,3 +460,4 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | 2026-07-19 | **ED-011…ED-013 recorded** during M4a: composition by constructor injection; contributing-input lineage; typed diagnostics. | ED-011 resolves what was first raised as an architectural conflict — re-reading doc 02 principle 5 showed it governs dependency, not construction, so no ADR was warranted and ADR-0021 remains unused. ED-012/013 spend ADR-0014's additive-extension clause. Next id: ED-014. |
 | 2026-07-19 | **ED-003 revised** (M4a): the SQLite dev backend is now thread-safe — `check_same_thread=False` plus a lock serializing every statement. | M2d's "single-threaded pipeline" assumption was invalidated by M4's serving plane; a threaded ASGI worker calls the repository from arbitrary threads. Recorded explicitly as a development implementation choice, not a scalability strategy: the lock serializes all access and does not travel to the Postgres implementation. New accepted cost: concurrency behaviour is unproven until deploy, so load and RTO numbers must be re-measured against Postgres. |
 | 2026-07-22 | **ED-014 recorded** during M4b: the strangler seam is a same-origin Next.js proxy, so no CORS middleware is added to the API. `backend/main.py` established as the ED-011 composition root and declared in `architecture_map.py`, with a guardrail test asserting it is the only unlayered module under `backend/`. | The dependency lint skips modules belonging to no layer, so an undeclared entry point would have been silently exempt from every rule. Declaring it turns a blind spot into a checked invariant. Next id: ED-015. |
+| 2026-07-22 | **ED-015 recorded** during M5: the skeleton's DAG is a stdlib task graph; ED-005 (Dagster) stays `Proposed` and no orchestration framework is introduced. | Doc 16 owns the orchestration *model* and defers the *product* to doc 12, banning ad-hoc cron only above the walking skeleton. The model's requirements — declared order, keyed idempotent tasks, runs as lineage events — are met without a framework. The capabilities that will force the product (scheduling, retries, backfill, invalidation cascades) are enumerated in the ED so the trigger is explicit. Next id: ED-016. |

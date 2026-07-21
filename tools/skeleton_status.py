@@ -22,7 +22,6 @@ import shutil
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 # ── Layer probes ──────────────────────────────────────────────────────────────
@@ -160,7 +159,6 @@ def trace(instrument: str, out) -> None:
     try:
         instrument_id = InstrumentId(instrument)
         reference = reference_for(instrument_id)
-        knowledge_time = datetime.now(UTC)
 
         _rule(out, f"WORKED EXAMPLE — {reference.name} ({instrument_id.value})")
 
@@ -169,6 +167,9 @@ def trace(instrument: str, out) -> None:
             fetcher=lambda *_: RawFetch(columns=EXPECTED_COLUMNS, rows=_SAMPLE_BARS)
         )
         response = adapter.fetch(PriceHistoryRequest(instrument_id, lookback_days=365))
+        # knowledge_time comes from the immutable raw envelope, never the clock — the
+        # same rule the DAG follows, and what makes a replay reproducible (M5).
+        knowledge_time = response.fetch.fetched_at
         _stage(out, "L1", "Provider adapter", [
             f"internal id       {instrument_id.value}",
             f"vendor symbol     {response.fetch.vendor_symbol}  (resolved by symbology)",
@@ -340,9 +341,16 @@ def status_board(out, repo_root: Path) -> None:
 
     built = sum(1 for layer in LAYERS if layer_is_built(layer, repo_root))
     complete = sum(1 for m in MILESTONES if milestone_is_complete(m, repo_root))
+    # Phrased so the ratio cannot be read as "the project is finished". Phase 0.5 is
+    # one phase of doc 15's roadmap; L8 (AI) is Phase 7 and never in skeleton scope.
+    scope = (
+        "Phase 0.5 (Walking Skeleton) COMPLETE"
+        if complete == len(MILESTONES)
+        else "Phase 0.5 (Walking Skeleton) in progress"
+    )
     print(
         f"\n  {built}/{len(LAYERS)} layers built · "
-        f"{complete}/{len(MILESTONES)} milestones complete",
+        f"{complete}/{len(MILESTONES)} Phase 0.5 milestones · {scope}",
         file=out,
     )
 

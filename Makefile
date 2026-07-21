@@ -2,7 +2,7 @@
 # `make check` runs the full guardrail + test gate (the same gate CI runs).
 PY ?= python
 
-.PHONY: install lint-arch lint test check skeleton serve openapi
+.PHONY: install lint-arch lint test check skeleton serve openapi recompute
 
 install:  ## Install the backend and dev tooling into the active environment.
 	$(PY) -m pip install -e ".[dev]"
@@ -27,3 +27,6 @@ serve:  ## Run the API locally (needs the `serve` extra: pip install -e ".[dev,s
 
 openapi:  ## Regenerate the committed OpenAPI contract artifact.
 	$(PY) -m backend.api.export_openapi
+
+recompute:  ## Recompute-from-raw: rebuild every derived value and time it (doc 00 §B6).
+	$(PY) -m tools.recompute_rto
