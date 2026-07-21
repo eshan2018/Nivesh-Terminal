@@ -56,7 +56,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 3. **The Configuration Source is authoritative for reproducibility.** The prose here explains
    *why*; the config file is the *what* that CI/deploys actually consume.
 4. **No duplication with ADRs.** An ED cites the ADR it realizes; it does not re-decide it.
-5. **IDs are permanent and never reused;** next id is **ED-014**.
+5. **IDs are permanent and never reused;** next id is **ED-015**.
 
 ---
 
@@ -76,6 +76,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | [ED-011](#ed-011--application-composition-by-constructor-injection) | Application composition by constructor injection | Accepted | doc 02 (principle 5), doc 03, ADR-0005 |
 | [ED-012](#ed-012--lineage-granularity-in-a-served-result) | Lineage granularity — contributing inputs + scanned count | Accepted | doc 04, ADR-0014/0017 |
 | [ED-013](#ed-013--typed-diagnostics-on-the-analyticresult-envelope) | Typed diagnostics on the envelope | Accepted | doc 04, ADR-0014 |
+| [ED-014](#ed-014--strangler-seam--server-side-proxy-rather-than-cors) | Strangler seam — server-side proxy, not CORS | Accepted | ADR-0020, doc 10/13 |
 
 ---
 
@@ -338,9 +339,16 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
   production entry point exists yet:** M4a ships the endpoint with composition performed in test
   fixtures, because binding a concrete repository is deployment work, deferred with M4b/M5.
   Reversal is a refactor, not a migration — the ED threshold.
+- **Realized in M4b:** `backend/main.py` is the composition root, declared as
+  `architecture_map.COMPOSITION_ROOT` and pinned by two guardrail tests — it is the only
+  unlayered module under `backend/`, and it contains no control flow. It exposes an **application
+  factory** (`create_app()`, loaded via `uvicorn --factory`) rather than a module-level `app`, so
+  importing the entry point provisions nothing; the environment is read only when the factory is
+  called.
 - **Configuration Source:** `backend/features/returns.py` (`close_price_series_provider`),
   `backend/analytics/one_year_return.py` (`one_year_return_for`), `backend/api/app.py`
-  (`create_app`), `tools/ci/architecture_map.py` (unchanged).
+  (`create_app`), `backend/main.py` (the root), `tools/ci/architecture_map.py`
+  (`COMPOSITION_ROOT`).
 - **Related Architecture Documents:** [doc 02](../architecture/02-engineering-principles.md) principle 5, [doc 03](../architecture/03-system-architecture.md), [doc 08](../architecture/08-analytics-framework.md), [ADR-0005](../architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters).
 
 ### ED-012 · Lineage granularity in a served result
@@ -385,6 +393,30 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
   `backend/analytics/one_year_return.py` (`ANCHOR_OFFSET_DAYS`).
 - **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md), [doc 08](../architecture/08-analytics-framework.md), [doc 10](../architecture/10-api-design.md), [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines).
 
+### ED-014 · Strangler seam — server-side proxy rather than CORS
+- **Status:** Accepted
+- **Context:** M4b required the live Next.js site to render a value from the new backend
+  *beside* its existing snapshot JSON ([ADR-0020](../architecture/18-architecture-decision-records.md#adr-0020--walking-skeleton-first-strangle-the-prototype)). The browser and the API are different origins,
+  so a client-side fetch needs CORS configured on the API. The architecture is silent on CORS —
+  [doc 13](../architecture/13-security.md) owns auth and secrets, not browser mechanics — so this is an implementation choice.
+- **Decision:** The frontend calls a **same-origin Next.js route handler**
+  (`web/app/api/metrics/one-year-return/route.ts`) that proxies to the backend server-side. **No
+  CORS middleware is added to the API**, and the backend origin is a server-side
+  `NIVESH_API_BASE_URL`, never a `NEXT_PUBLIC_` value baked into the client bundle.
+- **Alternatives Considered:** *CORS middleware on the API* — works, but adds middleware, puts an
+  allowed-origin list in backend config, and publishes the backend origin to every visitor;
+  *a Next.js server component* — no CORS either, but awkward to place inside the existing
+  client-rendered pane grid, and it couples page rendering to backend availability.
+- **Consequences:** The seam is one file and deleting it returns the site to snapshot-only, which
+  is what makes the strangler reversible. The proxy passes the DTO through **unchanged** — it is a
+  pipe, not a mapper, so the OpenAPI spec stays the single source of truth. It degrades rather
+  than fails: unset base URL, timeout (4s), non-200, and unreachable host all return an explicit
+  `{"status": "UNREACHABLE", reason}` body the pane renders as an offline state. **Verified by
+  running both halves and killing the API mid-session** — the live pane showed "api offline"
+  while every snapshot pane kept working.
+- **Configuration Source:** `web/app/api/metrics/one-year-return/route.ts`; `NIVESH_API_BASE_URL`.
+- **Related Architecture Documents:** [ADR-0020](../architecture/18-architecture-decision-records.md#adr-0020--walking-skeleton-first-strangle-the-prototype), [doc 10](../architecture/10-api-design.md), [doc 15](../architecture/15-development-roadmap.md).
+
 ---
 
 ## Change log
@@ -397,3 +429,4 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | 2026-07-18 | **ED-010 recorded** during Milestone M3: hypothesis as the property-based testing library, dev-only, under a derandomized hermetic profile. | M3 is the first milestone with financial math, and doc 11 makes the property tier mandatory for it. Dev-only, so the zero-runtime-dependency position is unchanged. Next id: ED-011. |
 | 2026-07-19 | **ED-011…ED-013 recorded** during M4a: composition by constructor injection; contributing-input lineage; typed diagnostics. | ED-011 resolves what was first raised as an architectural conflict — re-reading doc 02 principle 5 showed it governs dependency, not construction, so no ADR was warranted and ADR-0021 remains unused. ED-012/013 spend ADR-0014's additive-extension clause. Next id: ED-014. |
 | 2026-07-19 | **ED-003 revised** (M4a): the SQLite dev backend is now thread-safe — `check_same_thread=False` plus a lock serializing every statement. | M2d's "single-threaded pipeline" assumption was invalidated by M4's serving plane; a threaded ASGI worker calls the repository from arbitrary threads. Recorded explicitly as a development implementation choice, not a scalability strategy: the lock serializes all access and does not travel to the Postgres implementation. New accepted cost: concurrency behaviour is unproven until deploy, so load and RTO numbers must be re-measured against Postgres. |
+| 2026-07-22 | **ED-014 recorded** during M4b: the strangler seam is a same-origin Next.js proxy, so no CORS middleware is added to the API. `backend/main.py` established as the ED-011 composition root and declared in `architecture_map.py`, with a guardrail test asserting it is the only unlayered module under `backend/`. | The dependency lint skips modules belonging to no layer, so an undeclared entry point would have been silently exempt from every rule. Declaring it turns a blind spot into a checked invariant. Next id: ED-015. |

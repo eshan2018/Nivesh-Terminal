@@ -42,6 +42,21 @@ ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
     }),
 }
 
+# ── The composition root (ED-011) ─────────────────────────────────────────────
+# Every layered application needs one place where concrete implementations are
+# constructed and injected. Principle 5 (doc 02) governs what a layer may *depend
+# on* — "only the layer directly beneath it, via that layer's published contract" —
+# and is silent on who *builds* objects; being handed a constructed collaborator is
+# not a reach-around. So the entry point may import across layers **solely to
+# construct and wire**, and must contain no domain, analytics, or serving logic.
+#
+# This is declared rather than left implicit. `layer_of` returns None for it, and the
+# dependency lint skips modules that belong to no layer — so without this constant the
+# exemption would be an unexamined blind spot rather than a decision. The guardrail
+# test asserts this is the *only* module in `backend/` outside the layer graph, which
+# is what stops a second, undeclared one appearing later.
+COMPOSITION_ROOT = "backend.main"
+
 # Layer packages ordered deepest-first, so longest-prefix resolution is unambiguous
 # (e.g. `backend.providers.ports` wins over `backend.providers`).
 _LAYERS_DEEPEST_FIRST = sorted(ALLOWED_IMPORTS, key=lambda p: p.count("."), reverse=True)

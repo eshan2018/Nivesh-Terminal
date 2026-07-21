@@ -46,3 +46,8 @@ web/out/
 
 # Next.js generated types
 web/next-env.d.ts
+
+# Local domain store created by the API entry point (backend/main.py, ED-003).
+# Development artifact: the production system of record is PostgreSQL (ADR-0008).
+*.sqlite3
+*.sqlite3-journal

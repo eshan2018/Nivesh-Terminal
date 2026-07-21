@@ -7,6 +7,7 @@ trip the real CI run). A final test asserts the committed skeleton is clean.
 """
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 from tools.ci import architecture_map as amap
@@ -16,6 +17,7 @@ from tools.ci import (
     module_schema_isolation,
     vendor_isolation,
 )
+from tools.ci._scan import iter_source_files
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -174,3 +176,55 @@ def test_every_allowed_target_is_a_known_layer() -> None:
     for importer, targets in amap.ALLOWED_IMPORTS.items():
         for target in targets:
             assert target in known, f"{importer} allows unknown layer {target}"
+
+# ── The composition root (ED-011) ─────────────────────────────────────────────
+
+
+def test_the_composition_root_is_the_only_module_outside_the_layer_graph() -> None:
+    """The layer lint skips modules belonging to no layer, so an undeclared one would
+    be silently exempt from every dependency rule.
+
+    ED-011 sanctions exactly one such module — the process entry point, which must be
+    free to construct across layers. This asserts the exemption stays a decision rather
+    than becoming a hiding place: a second unlayered module under `backend/` fails here.
+    """
+    backend = REPO_ROOT / "backend"
+    # `backend` is the package root marker and `backend.tests` is the test tree;
+    # neither is application code, and neither may hold imports that matter.
+    exempt = {amap.PACKAGE_ROOT, amap.COMPOSITION_ROOT}
+    unlayered = {
+        src.module
+        for src in iter_source_files(backend)
+        if amap.layer_of(src.module) is None and not src.module.startswith("backend.tests")
+    }
+    assert unlayered == exempt, (
+        "every module under backend/ must belong to a layer, except the package root "
+        f"and the declared composition root ({amap.COMPOSITION_ROOT}). Unexpected: "
+        f"{sorted(unlayered - exempt)}"
+    )
+
+
+def test_the_composition_root_holds_no_logic() -> None:
+    """Its exemption is justified only while it is pure wiring.
+
+    A composition root that grows branching becomes an unlinted layer — the exact
+    reach-around the guardrails exist to prevent. Wiring is a straight line: construct,
+    bind, hand over. It needs no branches and no loops.
+
+    Control flow is the check, not arithmetic: `X | Y` type annotations parse as `BinOp`
+    and would make an arithmetic ban fire on ordinary typing.
+    """
+    source = (REPO_ROOT / "backend" / "main.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    forbidden = (
+        ast.If, ast.IfExp, ast.For, ast.While, ast.Try,
+        ast.ListComp, ast.DictComp, ast.SetComp, ast.GeneratorExp,
+    )
+    offenders = [
+        type(node).__name__
+        for node in ast.walk(tree)
+        if isinstance(node, forbidden)
+    ]
+    assert not offenders, (
+        f"the composition root must contain no logic, found: {sorted(set(offenders))}"
+    )

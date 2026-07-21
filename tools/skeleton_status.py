@@ -35,6 +35,9 @@ class Layer:
     package: str
     symbol: str | None  # a symbol that must exist for the layer to count as built
     owning_doc: str
+    # For layers that are not Python modules (the frontend), a repo-relative file whose
+    # existence proves the layer is wired. Used only when `symbol` is None.
+    artifact: str | None = None
 
 
 LAYERS: tuple[Layer, ...] = (
@@ -51,14 +54,26 @@ LAYERS: tuple[Layer, ...] = (
     Layer("L7", "Analytics engines", "backend.analytics", "one_year_return", "08"),
     Layer("L8", "AI layer", "backend.ai", None, "09"),
     Layer("L9", "REST API", "backend.api", "app", "10"),
-    Layer("L10", "Frontend", "web", None, "10"),
+    # L10 counts as built when the frontend actually has a path to the API. The proxy
+    # route *is* the strangler seam — the entire coupling between the live site and the
+    # new backend — so its presence is the honest marker, not a hand-set flag.
+    Layer("L10", "Frontend", "web", None, "10",
+          artifact="web/app/api/metrics/one-year-return/route.ts"),
 )
 
 
-def layer_is_built(layer: Layer) -> bool:
-    """Probe the codebase: the layer counts as built only if its symbol resolves."""
+def layer_is_built(layer: Layer, repo_root: Path | None = None) -> bool:
+    """Probe the codebase: a layer counts as built only if its marker resolves.
+
+    Python layers are probed by importing the module and checking the symbol exists.
+    The frontend is not importable Python, so it is probed by the presence of its
+    artifact — still a fact about the tree, never a hand-maintained flag.
+    """
     if layer.symbol is None:
-        return False
+        if layer.artifact is None:
+            return False
+        root = repo_root if repo_root is not None else Path(__file__).resolve().parents[1]
+        return (root / layer.artifact).exists()
     try:
         module = importlib.import_module(layer.package)
     except ImportError:
@@ -99,7 +114,9 @@ _ARTIFACTS: dict[str, tuple[str, ...]] = {
 def milestone_is_complete(milestone: Milestone, repo_root: Path) -> bool:
     if milestone.layers:
         return all(
-            layer_is_built(layer) for layer in LAYERS if layer.ident in milestone.layers
+            layer_is_built(layer, repo_root)
+            for layer in LAYERS
+            if layer.ident in milestone.layers
         )
     return all((repo_root / path).exists() for path in _ARTIFACTS.get(milestone.ident, ()))
 
@@ -311,7 +328,7 @@ def status_board(out, repo_root: Path) -> None:
 
     _rule(out, "LAYERS")
     for layer in LAYERS:
-        built = layer_is_built(layer)
+        built = layer_is_built(layer, repo_root)
         mark = "[built]  " if built else "[pending]"
         print(f"  {mark} {layer.ident:<4} {layer.name:<22} doc {layer.owning_doc}", file=out)
 
@@ -321,7 +338,7 @@ def status_board(out, repo_root: Path) -> None:
         mark = "[x]" if done else "[ ]"
         print(f"  {mark} {milestone.ident:<4} {milestone.title}", file=out)
 
-    built = sum(1 for layer in LAYERS if layer_is_built(layer))
+    built = sum(1 for layer in LAYERS if layer_is_built(layer, repo_root))
     complete = sum(1 for m in MILESTONES if milestone_is_complete(m, repo_root))
     print(
         f"\n  {built}/{len(LAYERS)} layers built · "
@@ -343,7 +360,7 @@ def mermaid(repo_root: Path) -> str:
     previous = "V"
     for layer in LAYERS:
         node = layer.ident
-        style = "built" if layer_is_built(layer) else "pending"
+        style = "built" if layer_is_built(layer, repo_root) else "pending"
         lines.append(f"    {node}[\"{layer.ident} · {layer.name}\"]:::{style}")
         lines.append(f"    {previous} --> {node}")
         previous = node

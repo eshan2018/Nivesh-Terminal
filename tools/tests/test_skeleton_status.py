@@ -16,20 +16,19 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_built_layers_are_detected_by_probing_the_code() -> None:
-    built = {layer.ident for layer in status.LAYERS if status.layer_is_built(layer)}
-    assert {"L1", "L2", "L3", "L4", "L5", "L6", "L7", "L9"} <= built
+    built = {layer.ident for layer in status.LAYERS if status.layer_is_built(layer, REPO_ROOT)}
+    assert {"L1", "L2", "L3", "L4", "L5", "L6", "L7", "L9", "L10"} <= built
 
 
 def test_unbuilt_layers_are_reported_pending() -> None:
-    built = {layer.ident for layer in status.LAYERS if status.layer_is_built(layer)}
-    assert not ({"L8", "L10"} & built)
+    built = {layer.ident for layer in status.LAYERS if status.layer_is_built(layer, REPO_ROOT)}
+    assert not ({"L8"} & built)
 
 
 def test_completed_milestones_match_built_layers() -> None:
     complete = {m.ident for m in status.MILESTONES if status.milestone_is_complete(m, REPO_ROOT)}
-    assert {"M0", "M1", "M2", "M2b", "M2c", "M2d", "M3"} <= complete
-    # M4 needs L9 *and* L10: M4a built the API, M4b wires the frontend.
-    assert not ({"M4", "M5"} & complete)
+    assert {"M0", "M1", "M2", "M2b", "M2c", "M2d", "M3", "M4"} <= complete
+    assert not ({"M5"} & complete)
 
 
 def test_status_board_renders_without_ansi_when_not_a_tty() -> None:
@@ -95,7 +94,19 @@ def test_mermaid_marks_built_and_pending_layers() -> None:
     assert "L1 · Provider adapters\"]:::built" in diagram
     assert "L6 · Feature engineering\"]:::built" in diagram
     assert "L9 · REST API\"]:::built" in diagram
-    assert "L10 · Frontend\"]:::pending" in diagram
+    assert "L8 · AI layer\"]:::pending" in diagram
+
+
+def test_the_frontend_layer_is_probed_by_its_artifact_not_a_flag() -> None:
+    """L10 is not importable Python, so it is probed by the strangler seam's presence.
+
+    The board's value is that it cannot drift from the tree; a hand-set boolean for the
+    one non-Python layer would reintroduce exactly the staleness it exists to prevent.
+    """
+    l10 = next(layer for layer in status.LAYERS if layer.ident == "L10")
+    assert l10.symbol is None and l10.artifact is not None
+    assert (REPO_ROOT / l10.artifact).exists()
+    assert not status.layer_is_built(l10, REPO_ROOT / "does-not-exist")
 
 
 def test_cli_entrypoint_succeeds() -> None:

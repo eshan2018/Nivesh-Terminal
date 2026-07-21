@@ -1,20 +1,23 @@
 # Project Context — Nivesh Terminal
 
 **Hand-off brief for any new session. Read this first, then the linked docs.**
-Last updated: 2026-07-19 · `main` @ `4c0e5d5`
+Last updated: 2026-07-22 · `main` @ `c875a5a`
 
 ---
 
 ## 1 · Current progress
 
 ```
-Current milestone      M3 COMPLETE
-Next milestone         M4 — REST API + frontend strangler cutover
+Current milestone      M4 COMPLETE  (M4a serve slice · M4b strangler)
+Next milestone         M5 — DAG + recompute-from-raw RTO measurement
 Current branch         main
-Latest merge           M3 compute slice + PROJECT_CONTEXT
-Checkpoint tag         v0.1-walking-skeleton  → bcd020f  (L1–L5 only; see warning below)
-Tests                  173 passing
-Runtime dependencies   0   (hypothesis is dev-only, ED-010)
+Latest merge           M4b strangler + production entry point
+Checkpoint tags        v0.1-walking-skeleton → bcd020f  (L1–L5, ingest half)
+                       v0.2-compute-slice    → 4c0e5d5  (L6–L7, compute half)
+Tests                  222 passing
+Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
+                       at M4a; L1–L7 remain stdlib-only)
+CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
 ```
 
 **Completed**
@@ -28,19 +31,25 @@ Runtime dependencies   0   (hypothesis is dev-only, ED-010)
 ✓ M2d  Repository  (L5)    MarketDataRepository + SQLite backend
 ✓ M3   Compute     (L6-L7) close-price-series feature (C3 seam) + one_year_return
                            → AnalyticResult; methodology catalog populated
+✓ M4a  Serve       (L9)    one traced endpoint + committed OpenAPI contract artifact
+✓ M4b  Strangler   (L10)   live-API pane beside the snapshot JSON; production
+                           entry point (`backend/main.py`, the ED-011 composition root)
 ```
 
 **Remaining**
 
 ```
-□ M4   Serve       (L9-L10) REST API + frontend strangler cutover
 □ M5   Orchestration        DAG + recompute-from-raw RTO measurement
 ```
 
-> ⚠️ **The Walking Skeleton is NOT finished** — 7/10 layers, 7/9 milestones. The tag
-> `v0.1-walking-skeleton` marks the **ingest half** (L1–L5). Phase 0.5's Definition of Done is
-> still unmet: the recompute-RTO number does not exist (M5) and the strangler is not proven live
-> (M4). Do not read the tag name as completion.
+> ⚠️ **The Walking Skeleton is NOT finished** — 9/10 layers, 8/9 milestones. L8 (AI) is Phase 7,
+> outside skeleton scope. **One Phase 0.5 Definition-of-Done item remains: the recompute-from-raw
+> RTO number does not exist (M5).**
+>
+> The strangler *is* now proven live (M4b): the live-API pane renders beside the snapshot JSON on
+> the same page, and when the backend is down the pane degrades to an explicit "api offline"
+> message while every snapshot pane keeps working. Verified by running both halves together, not
+> by inspection.
 
 ---
 
@@ -81,9 +90,9 @@ those are modules on a shared foundation, never the core.
 Data flows **down**; dependencies point only **up**. Nothing skips a layer.
 
 ```
-        L10  Frontend             ⬜  (prototype live on snapshot JSON)
+        L10  Frontend             ✅  live-API pane beside the snapshot JSON (M4b)
               │
-        L9   REST API             ⬜  M4
+        L9   REST API             ✅  one endpoint + OpenAPI artifact (M4a)
               │
         L8   AI Layer             ⬜  Phase 7
               │
@@ -118,7 +127,9 @@ Recorded so they aren't rediscovered. Full reasoning in `docs/implementation/01-
 Raw store           Filesystem              S3-compatible object storage
 Domain store        SQLite (stdlib)         PostgreSQL
 Language            Python 3.12             Python 3.12
-API framework       FastAPI + Pydantic (chosen, not yet built)
+API framework       FastAPI + Pydantic (built, M4a)
+ASGI server         uvicorn (optional `serve` extra — the package ships an app,
+                    not a server)
 Orchestrator        Dagster (proposed, not yet built)
 
 Reason:  the minimalism principle. The PORT is the architectural requirement;
@@ -130,6 +141,34 @@ Accepted cost: the S3 and Postgres code paths are unexercised until deploy,
          and the Phase-0.5 recompute-RTO will be a local filesystem baseline
          that must be re-measured against real object storage.
 ```
+
+---
+
+### Runtime dependencies — precisely
+
+The "zero runtime dependencies" position held through M3 and **ended at M4a**, when L9 needed a
+web framework. Stated exactly, so the claim stays checkable:
+
+```
+Direct (declared in pyproject `[project] dependencies`)      1
+  fastapi
+
+Transitive (installed because fastapi requires them)         9
+  annotated-types · anyio · exceptiongroup · idna · pydantic
+  pydantic-core · starlette · typing-extensions · typing-inspection
+
+Optional extra `serve` (not installed by default)            1 direct · 4 transitive
+  uvicorn → click · colorama · h11 · typing-extensions
+
+Dev-only (`[dev]`, never shipped)
+  hypothesis · httpx · pytest · pytest-cov · ruff
+```
+
+**Layers L1–L7 remain stdlib-only.** The dependency lives entirely at L9: nothing in ingestion,
+the domain, features, or analytics imports a third-party package, so the compute core stays
+portable and the framework stays swappable behind ADR-0012's REST contract. The ASGI *server* is
+an optional extra rather than a dependency because the package ships an application, and which
+server runs it is a deployment choice (ED-002).
 
 ---
 
@@ -230,7 +269,9 @@ tools/ci/                     the three architecture guardrails + tests
 tools/skeleton_status.py      live status board (`make skeleton`)
 .github/workflows/ci.yml      CI — active: guardrails + ruff + pytest on every push/PR
 
-home.py, pages/, shared/, tickers/, web/    ← OLD PROTOTYPE, still live. Do not extend.
+home.py, pages/, shared/, tickers/          ← OLD PROTOTYPE, still live. Do not extend.
+web/                        Next.js frontend — being strangled, not rewritten:
+                            app/api/metrics/…/route.ts is the one seam to the backend.
 ```
 
 ---
@@ -248,15 +289,33 @@ make skeleton    # live status board + real end-to-end trace
 
 ## 10 · Open items
 
-1. **Tag name caveat** — `v0.1-walking-skeleton` marks L1–L5 only (see §1 warning).
+1. **Frontend test infrastructure — deferred to Phase 1 (deliberate, not an oversight).**
+   The L10 strangler pane has **no automated test**. Its behaviour was verified by running both
+   halves together and killing the API mid-session (see §1), but nothing guards it in CI. Doc 11
+   defines the test tiers for the backend and is silent on frontend unit testing, so this is a
+   gap in coverage, not a violation.
+   *Why deferred:* a frontend test runner (Vitest/RTL, or Playwright for the end-to-end path) is
+   a new dependency set and a second CI job, for one pane that is itself disposable — ADR-0020
+   re-cuts this endpoint and its consumer on the hardened model in Phase 1. Building the harness
+   now would test code scheduled for replacement.
+   *What to do in Phase 1:* choose the runner as an ED, and cover at minimum the three states the
+   pane must never get wrong — available, `UNAVAILABLE` (reason shown, never `0.00%`), and
+   `UNREACHABLE` (site intact).
+   *Risk accepted meanwhile:* a regression in the pane's degraded-state rendering would reach the
+   live site undetected by CI.
+2. **Tag name caveat** — `v0.1-walking-skeleton` marks L1–L5 only (see §1 warning).
    `v0.2-compute-slice` names its increment rather than the whole, so it carries no such trap.
-2. **One interpretation open to a second opinion** — L4 preserves native currency and does not
+3. **One interpretation open to a second opinion** — L4 preserves native currency and does not
    FX-convert (recorded in the plan's decision log). Changing it is a plan change, not an
    architecture change.
+4. **`source_ref` resolution is O(n)** — a lineage endpoint resolves a handle by scanning raw
+   object keys (proven in `backend/tests/api/test_source_ref_resolution.py`). Correct and cheap at
+   skeleton scale; needs a stored `ref → key` index before real traffic. The published contract
+   does not change when that index lands.
 
 ---
 
-## 11 · Pre-M4 open design decisions — **AWAITING APPROVAL**
+## 11 · Pre-M4 design decisions — **RESOLVED**
 
 Two questions the M3 code review raised that M3 could defer and M4 cannot. Both are invisible
 until something serializes the `AnalyticResult`; M4 is the first thing that does. Both are
@@ -267,11 +326,9 @@ the reasoning.
 the envelope's shape and [doc 08](architecture/08-analytics-framework.md) may not alter it.
 [ADR-0014](architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines)'s
 revisit clause pre-authorizes *additive* extension ("If the envelope proves insufficient for a new
-analytic class, extend it additively (owned by doc 04, ADR-0004)"). **A prior classification call
-is therefore required:** if additive extension counts as spending that clause, each is an
-**Engineering Decision (ED-011/ED-012)**; if it counts as amending a canonical entity, it needs
-**ADR-0021**. Recommendation: ED, citing the ADR-0014 clause — no boundary, contract direction, or
-migration is involved, and reversal is a field deletion.
+analytic class, extend it additively (owned by doc 04, ADR-0004)"). **Classification decided 2026-07-19: Engineering Decision, not ADR** — additive extension spends
+ADR-0014's clause; no boundary, contract direction, or migration is involved, and reversal is a
+field deletion. Recorded as **ED-012** and **ED-013**. **ADR-0021 remains unused.**
 
 ---
 
@@ -305,7 +362,7 @@ plus a scanned count plus the de-duplicated raw object keys.
 - *Against:* a second endpoint, which M4's own fence forbids. **This is the likely Phase-1
   shape** — A is forward-compatible with it.
 
-**Status: awaiting approval.** Recommendation: **A**, with C as the Phase-1 successor.
+**Status: APPROVED 2026-07-19 → Option A. Implemented as ED-012.** C remains the Phase-1 successor.
 
 ---
 
@@ -333,11 +390,11 @@ Recovering the number means string-parsing a flag.
   catalog lists that approximation as a mandatory limitation; hiding it at the API contradicts
   the entry.
 
-**Status: awaiting approval.** Recommendation: **A**.
+**Status: APPROVED 2026-07-19 → Option A. Implemented as ED-013.**
 
 ---
 
-## 12 · Next milestone — M4 · Serve slice (L9–L10)
+## 12 · Completed milestone — M4 · Serve slice (L9–L10)
 
 **Objective:** one OpenAPI-first endpoint that projects the `AnalyticResult` into a DTO, rendered
 live in the existing site beside the snapshot JSON. **Gate to next:** *strangler proven live.*

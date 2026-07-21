@@ -267,3 +267,142 @@ export function LaunchPane() {
     </Pane>
   );
 }
+
+/* ---------- [09] LIVE METRIC — the strangler proof ----------
+   Every other pane on this page reads a pre-baked snapshot JSON file. This one
+   calls the real layered backend (L1 provider -> L5 store -> L6 feature -> L7
+   engine -> L9 API) through a same-origin proxy, and renders the value next to
+   its lineage and freshness.
+
+   The two data paths run side by side on purpose: that is what ADR-0020's
+   strangler pattern means in practice. The snapshot panes keep working whether
+   or not the backend exists, and this pane degrades to an explicit message
+   rather than blanking, erroring, or — the cardinal sin — showing 0.00%. */
+
+type LineageRef = { event_time: string; knowledge_time: string; source_ref: string };
+type MetricPayload = {
+  status?: "UNREACHABLE";
+  reason?: string;
+  instrument?: { id: string; name: string; type: string };
+  metric?: {
+    id: string;
+    formula_version: string;
+    unit: string;
+    status: "AVAILABLE" | "UNAVAILABLE";
+    value: number | null;
+    unavailable_reason: string | null;
+  };
+  freshness?: {
+    as_of: string;
+    computed_at: string;
+    quality_flags: string[];
+    diagnostics: Record<string, number>;
+  };
+  lineage?: {
+    feature_id: string;
+    feature_version: string;
+    reference_version: string;
+    contributing: LineageRef[];
+    scanned_count: number;
+    source_refs: string[];
+  };
+};
+
+function asPercent(ratio: number): string {
+  const pct = ratio * 100;
+  return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
+}
+
+export function LiveMetricPane() {
+  const [payload, setPayload] = useState<MetricPayload | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [showWhy, setShowWhy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/metrics/one-year-return", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((data: MetricPayload) => { if (!cancelled) setPayload(data); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const metric = payload?.metric;
+  const lineage = payload?.lineage;
+  const freshness = payload?.freshness;
+
+  return (
+    <Pane id="09" title="LIVE METRIC · 1Y RETURN — via API" span="s4" domId="pane-live-metric">
+      {failed || payload?.status === "UNREACHABLE" ? (
+        /* The backend is not deployed yet in most environments. Say which, plainly. */
+        <div className="muted" style={{ fontSize: 12, lineHeight: 1.7 }}>
+          <div style={{ color: "#ffb300" }}>▮ api offline</div>
+          <div>{payload?.reason ?? "api-unreachable"}</div>
+          <div style={{ color: "#4a6080", marginTop: 6 }}>
+            snapshot panes above are unaffected — that is the point
+          </div>
+        </div>
+      ) : !payload ? (
+        <div className="muted" style={{ fontSize: 12 }}>$ querying api …</div>
+      ) : (
+        <>
+          <div className="mw-row">
+            <span className="n">{payload.instrument?.name?.toUpperCase() ?? "—"}</span>
+            <span>
+              {metric?.status === "AVAILABLE" && metric.value !== null ? (
+                <span className={metric.value >= 0 ? "up" : "down"}>
+                  {asPercent(metric.value)}
+                </span>
+              ) : (
+                /* Absence, never zero (principle 13). */
+                <span style={{ color: "#ffb300" }}>n/a</span>
+              )}
+            </span>
+          </div>
+
+          {metric?.status === "UNAVAILABLE" && (
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              {metric.unavailable_reason}
+            </div>
+          )}
+
+          <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>
+            {freshness ? `as of ${freshness.as_of.slice(0, 10)} · live api` : "live api"}
+          </div>
+
+          <button
+            onClick={() => setShowWhy((v) => !v)}
+            style={{
+              background: "none", border: "1px solid #24354d", color: "#8da4c4",
+              fontFamily: "inherit", fontSize: 11, padding: "2px 8px",
+              marginTop: 8, cursor: "pointer",
+            }}
+          >
+            {showWhy ? "hide" : "why?"}
+          </button>
+
+          {showWhy && lineage && (
+            /* The differentiator, rendered: this number traces to named inputs,
+               a versioned formula, and a pinned reference state. */
+            <div className="muted" style={{ fontSize: 10.5, marginTop: 8, lineHeight: 1.75 }}>
+              <div>formula · {metric?.formula_version}</div>
+              <div>feature · {lineage.feature_version}</div>
+              <div>reference · {lineage.reference_version}</div>
+              <div>
+                inputs · {lineage.contributing.length} of {lineage.scanned_count} observations
+              </div>
+              {lineage.contributing.map((ref) => (
+                <div key={ref.source_ref} style={{ color: "#4a6080" }}>
+                  ↳ {ref.event_time.slice(0, 10)} · src {ref.source_ref.slice(0, 8)}
+                </div>
+              ))}
+              {freshness && Object.entries(freshness.diagnostics).map(([key, value]) => (
+                <div key={key} style={{ color: "#4a6080" }}>{key} · {value}</div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </Pane>
+  );
+}

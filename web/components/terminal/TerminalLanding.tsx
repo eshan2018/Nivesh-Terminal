@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import "./terminal.css";
 import {
   MarketWatchPane, TrendPane, SysInfoPane, ModulesPane,
-  ManifestoPane, RiskPane, QuickstartPane, LaunchPane,
+  ManifestoPane, RiskPane, QuickstartPane, LaunchPane, LiveMetricPane,
 } from "./Panes";
 
 /* ---------------- boot sequence ---------------- */
@@ -203,6 +203,8 @@ export default function TerminalLanding() {
       <CommandBar />
       <div className="pane-grid">
         <MarketWatchPane />
+        {/* Sits beside the snapshot panes, reading the real backend (ADR-0020). */}
+        <LiveMetricPane />
         <TrendPane />
         <SysInfoPane />
         <ModulesPane />

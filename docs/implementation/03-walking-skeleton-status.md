@@ -34,9 +34,9 @@ flowchart TD
     L6 --> L7
     L8["L8 · AI layer"]:::pending
     L7 --> L8
-    L9["L9 · REST API"]:::pending
+    L9["L9 · REST API"]:::built
     L8 --> L9
-    L10["L10 · Frontend"]:::pending
+    L10["L10 · Frontend"]:::built
     L9 --> L10
 ```
 
@@ -50,8 +50,8 @@ flowchart TD
 | L6 Feature engineering | ✅ built | `build_close_price_series` → `ClosePriceSeries` (the C3 seam) | 08 |
 | L7 Analytics engines | ✅ built | `one_year_return` → `AnalyticResult` | 08 |
 | L8 AI layer | ⬜ pending | *(deferred to Phase 7)* | 09 |
-| L9 REST API | ⬜ pending | — | 10 |
-| L10 Frontend | ⬜ pending | existing Next.js app, not yet wired to an API | 10 |
+| L9 REST API | ✅ built | `create_app` + one endpoint + committed `openapi.json` | 10 |
+| L10 Frontend | ✅ built | live-API pane beside the snapshot JSON, via a same-origin proxy | 10 |
 
 ## 2 · How data flows today
 
@@ -91,8 +91,12 @@ InstrumentId("reliance")                        ← internal identity, never a v
            └── missing/undefined input ⇒ Unavailable(reason), never zero
 ```
 
-Everything above L7 (API → frontend) is **not yet connected**; the existing Next.js site still
-reads its snapshot JSON, exactly as the strangler plan intends.
+  → L9  GET /v1/instruments/{id}/metrics/one-year-return  DTO + lineage + freshness
+  → L10 the terminal renders it in pane [09], beside the snapshot panes
+
+Both data paths now run on the same page — that is the strangler (ADR-0020). The snapshot panes
+are untouched and keep working when the backend is down; the live pane degrades to an explicit
+"api offline" message rather than blanking or showing a zero.
 
 ## 3 · Milestones
 
@@ -105,7 +109,7 @@ reads its snapshot JSON, exactly as the strangler plan intends.
 | M2c | Gate + normalization (L3–L4) | ✅ complete |
 | M2d | Domain store (L5) | ✅ complete |
 | M3 | Compute slice — feature + engine (L6–L7) | ✅ complete |
-| M4 | Serve slice — API + frontend (L9–L10) | ⬜ remaining |
+| M4 | Serve slice — API + frontend (L9–L10) | ✅ complete |
 | M5 | DAG + recompute-from-raw timing | ⬜ remaining |
 
 ## 4 · A real example, end to end
@@ -168,4 +172,5 @@ making FX conversion type-impossible.
 | Date | Change |
 |------|--------|
 | 2026-07-17 | Created after M2d. Layers L1–L5 built; L6–L10 pending. |
+| 2026-07-22 | Regenerated after M4. L9 (endpoint + OpenAPI artifact) and L10 (live pane + composition root) built; only L8 (Phase 7) and M5 remain. |
 | 2026-07-18 | Regenerated after M3. L6 (close-price-series feature, the C3 seam) and L7 (`one_year_return` → `AnalyticResult`) built; L8–L10 pending. |
