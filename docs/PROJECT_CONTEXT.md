@@ -1,7 +1,7 @@
 # Project Context — Nivesh Terminal
 
 **Hand-off brief for any new session. Read this first, then the linked docs.**
-Last updated: 2026-07-22 · `main` @ `60adb08`
+Last updated: 2026-07-22 · reference state: tag `v0.3-walking-skeleton-complete`
 
 ---
 
@@ -45,7 +45,7 @@ Phase                  **Phase 0.5 (Walking Skeleton) COMPLETE — FROZEN**
 Last milestone         M5 (DAG + recompute RTO) — Phase 0.5 DoD met in full
 Next milestone         Phase 1 (see doc 15) — not started, not planned
 Current branch         main
-Latest merge           M5 DAG + recompute-from-raw RTO
+Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
                        v0.2-compute-slice           (L6–L7, compute half)
                        v0.3-walking-skeleton-complete (Phase 0.5 closed)
