@@ -1,20 +1,20 @@
 # Project Context — Nivesh Terminal
 
 **Hand-off brief for any new session. Read this first, then the linked docs.**
-Last updated: 2026-07-22 · `main` @ `c875a5a`
+Last updated: 2026-07-22 · `main` @ `60adb08`
 
 ---
 
 ## 1 · Current progress
 
 ```
-Current milestone      M4 COMPLETE  (M4a serve slice · M4b strangler)
-Next milestone         M5 — DAG + recompute-from-raw RTO measurement
+Current milestone      M5 COMPLETE — **Phase 0.5 Definition of Done met**
+Next milestone         Phase 1 (see doc 15) — not started, not planned
 Current branch         main
-Latest merge           M4b strangler + production entry point
+Latest merge           M5 DAG + recompute-from-raw RTO
 Checkpoint tags        v0.1-walking-skeleton → bcd020f  (L1–L5, ingest half)
                        v0.2-compute-slice    → 4c0e5d5  (L6–L7, compute half)
-Tests                  222 passing
+Tests                  246 passing
 Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
                        at M4a; L1–L7 remain stdlib-only)
 CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
@@ -34,22 +34,30 @@ CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
 ✓ M4a  Serve       (L9)    one traced endpoint + committed OpenAPI contract artifact
 ✓ M4b  Strangler   (L10)   live-API pane beside the snapshot JSON; production
                            entry point (`backend/main.py`, the ED-011 composition root)
+✓ M5   Orchestration       forward-only ingest DAG (stdlib, ED-015) + recompute-from-raw
+                           procedure; **RTO measured: ~0.011 s, byte-identical rebuild**
 ```
 
 **Remaining**
 
 ```
-□ M5   Orchestration        DAG + recompute-from-raw RTO measurement
+—  Phase 0.5 is complete. Phase 1 (doc 15) re-hardens the domain model and re-cuts the
+   throwaway endpoint on it; it is neither started nor planned.
 ```
 
-> ⚠️ **The Walking Skeleton is NOT finished** — 9/10 layers, 8/9 milestones. L8 (AI) is Phase 7,
-> outside skeleton scope. **One Phase 0.5 Definition-of-Done item remains: the recompute-from-raw
-> RTO number does not exist (M5).**
+> ✅ **The Walking Skeleton is complete — 9/10 layers, 9/9 milestones.** L8 (AI) is Phase 7 and
+> was never in skeleton scope, so 9/10 is the finished state, not a shortfall.
 >
-> The strangler *is* now proven live (M4b): the live-API pane renders beside the snapshot JSON on
-> the same page, and when the backend is down the pane degrades to an explicit "api offline"
-> message while every snapshot pane keeps working. Verified by running both halves together, not
-> by inspection.
+> **Every item of Phase 0.5's Definition of Done (plan §B8) is met:** every layer exists and is
+> exercised; lineage resolves end-to-end; the recompute-from-raw number exists (~0.011 s,
+> byte-identical); the strangler is proven live; `knowledge_time`, decimal money, vendor
+> isolation and module-owned schemas are all green in CI; and no breadth was built — still
+> 5 instruments, 1 provider, 1 metric, 1 endpoint.
+>
+> **What that does not mean.** This is a skeleton, not a product: one metric, five hand-listed
+> instruments, a provisional domain model, a disposable endpoint that ADR-0020 re-cuts in
+> Phase 1, and an RTO measured on a local baseline that must be re-measured against real
+> infrastructure. The bones connect. That was the whole objective.
 
 ---
 
@@ -252,6 +260,7 @@ docs/
     02-methodology-catalog.md      formula home — close_price_series v1,
                                    one-year-total-return v1 (+ golden seeding record)
     03-walking-skeleton-status.md  status snapshot (regenerate, don't hand-edit)
+    04-recompute-rto.md            the recompute procedure + the measured RTO number
 
 backend/                      the layered app (45 modules, 173 tests)
   platform/                   kernel: InstrumentId
@@ -283,6 +292,8 @@ python3.12 -m venv .venv && source .venv/bin/activate
 make install     # pip install -e ".[dev]"
 make check       # guardrails + ruff + pytest  ← the gate, before every commit
 make skeleton    # live status board + real end-to-end trace
+make recompute   # rebuild every derived value from raw and time it (doc 00 §B6)
+make serve       # run the API locally (needs the `serve` extra)
 ```
 
 ---

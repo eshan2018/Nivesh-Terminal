@@ -22,7 +22,6 @@ import shutil
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 # ── Layer probes ──────────────────────────────────────────────────────────────
@@ -160,7 +159,6 @@ def trace(instrument: str, out) -> None:
     try:
         instrument_id = InstrumentId(instrument)
         reference = reference_for(instrument_id)
-        knowledge_time = datetime.now(UTC)
 
         _rule(out, f"WORKED EXAMPLE — {reference.name} ({instrument_id.value})")
 
@@ -169,6 +167,9 @@ def trace(instrument: str, out) -> None:
             fetcher=lambda *_: RawFetch(columns=EXPECTED_COLUMNS, rows=_SAMPLE_BARS)
         )
         response = adapter.fetch(PriceHistoryRequest(instrument_id, lookback_days=365))
+        # knowledge_time comes from the immutable raw envelope, never the clock — the
+        # same rule the DAG follows, and what makes a replay reproducible (M5).
+        knowledge_time = response.fetch.fetched_at
         _stage(out, "L1", "Provider adapter", [
             f"internal id       {instrument_id.value}",
             f"vendor symbol     {response.fetch.vendor_symbol}  (resolved by symbology)",

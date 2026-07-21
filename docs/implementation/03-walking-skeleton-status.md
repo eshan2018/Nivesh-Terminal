@@ -110,7 +110,7 @@ are untouched and keep working when the backend is down; the live pane degrades 
 | M2d | Domain store (L5) | ✅ complete |
 | M3 | Compute slice — feature + engine (L6–L7) | ✅ complete |
 | M4 | Serve slice — API + frontend (L9–L10) | ✅ complete |
-| M5 | DAG + recompute-from-raw timing | ⬜ remaining |
+| M5 | DAG + recompute-from-raw timing | ✅ complete — RTO ~0.011 s, byte-identical |
 
 ## 4 · A real example, end to end
 
@@ -172,5 +172,6 @@ making FX conversion type-impossible.
 | Date | Change |
 |------|--------|
 | 2026-07-17 | Created after M2d. Layers L1–L5 built; L6–L10 pending. |
+| 2026-07-22 | Regenerated after M5. All nine milestones complete; Phase 0.5 Definition of Done met. The ingest DAG runs forward-only on a stdlib task graph (ED-015) and the recompute-from-raw procedure reproduces the served metric byte-identically in ~0.011 s (local baseline — see [04-recompute-rto.md](04-recompute-rto.md)). |
 | 2026-07-22 | Regenerated after M4. L9 (endpoint + OpenAPI artifact) and L10 (live pane + composition root) built; only L8 (Phase 7) and M5 remain. |
 | 2026-07-18 | Regenerated after M3. L6 (close-price-series feature, the C3 seam) and L7 (`one_year_return` → `AnalyticResult`) built; L8–L10 pending. |

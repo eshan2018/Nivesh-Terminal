@@ -27,8 +27,9 @@ def test_unbuilt_layers_are_reported_pending() -> None:
 
 def test_completed_milestones_match_built_layers() -> None:
     complete = {m.ident for m in status.MILESTONES if status.milestone_is_complete(m, REPO_ROOT)}
-    assert {"M0", "M1", "M2", "M2b", "M2c", "M2d", "M3", "M4"} <= complete
-    assert not ({"M5"} & complete)
+    assert complete == {m.ident for m in status.MILESTONES}, (
+        "every milestone is complete: the Walking Skeleton's Phase 0.5 scope is done"
+    )
 
 
 def test_status_board_renders_without_ansi_when_not_a_tty() -> None:
