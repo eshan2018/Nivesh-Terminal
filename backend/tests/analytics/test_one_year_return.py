@@ -21,6 +21,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from backend.analytics.one_year_return import (
+    ANCHOR_OFFSET_DAYS,
     FORMULA_VERSION,
     INSUFFICIENT_HISTORY,
     METRIC_ID,
@@ -180,8 +181,12 @@ def test_the_metric_is_unitless_so_an_index_computes_the_same_as_an_equity() -> 
     assert equity.value == index.value
 
 
-def test_an_anchor_off_the_target_date_is_used_and_flagged() -> None:
-    """Markets close; the nearest bar within tolerance is used, and says so."""
+def test_an_anchor_off_the_target_date_is_used_and_reported_as_a_number() -> None:
+    """Markets close; the nearest bar within tolerance is used, and says how far off.
+
+    The offset is a typed diagnostic, not a string inside a quality flag — so a
+    consumer reads a number instead of parsing one out of a tag (Decision 2).
+    """
     result = one_year_return(
         _series_at(
             [
@@ -193,10 +198,11 @@ def test_an_anchor_off_the_target_date_is_used_and_flagged() -> None:
     )
     _assert_ratio(result, 0.1)
     # Target is 2025-01-05; the anchor sits three days earlier.
-    assert "anchor-offset-days:-3" in result.quality_flags
+    assert dict(result.diagnostics)[ANCHOR_OFFSET_DAYS] == -3.0
+    assert result.quality_flags == ()  # flags stay opaque tags
 
 
-def test_an_exact_anchor_raises_no_offset_flag() -> None:
+def test_an_exact_anchor_reports_a_zero_offset() -> None:
     result = one_year_return(
         _series_at(
             [
@@ -206,7 +212,7 @@ def test_an_exact_anchor_raises_no_offset_flag() -> None:
         ),
         computed_at=COMPUTED_AT,
     )
-    assert not any(flag.startswith("anchor-offset-days") for flag in result.quality_flags)
+    assert dict(result.diagnostics)[ANCHOR_OFFSET_DAYS] == 0.0
 
 
 # ── Absence, never fabrication (principle 13) ─────────────────────────────────
@@ -323,6 +329,32 @@ def test_lineage_resolves_from_the_result_to_the_raw_records() -> None:
     assert {ref.provenance.raw_contract_version for ref in feature.inputs} == {
         "yfinance-ohlcv/v1"
     }
+
+
+def test_lineage_names_the_two_bars_that_produced_the_value() -> None:
+    """Decision 1: contributing inputs, not the whole scanned set.
+
+    400 bars are scanned to find the anchor; two determine the answer. A response
+    carrying all 400 would grow with history rather than with the answer.
+    """
+    prices = [Decimal("100.00")] * 400
+    prices[34] = Decimal("200.00")   # the anchor bar: 399 - 365 = index 34
+    prices[399] = Decimal("300.00")  # the end bar
+    result = one_year_return(_series_from(_observations(prices)), computed_at=COMPUTED_AT)
+
+    assert result.lineage.scanned_count() == 400
+    assert len(result.lineage.contributing) == 2
+    anchor, end = result.lineage.contributing
+    assert anchor.event_time == START + timedelta(days=34)
+    assert end.event_time == START + timedelta(days=399)
+    _assert_ratio(result, 300.0 / 200.0 - 1.0)
+
+
+def test_an_unavailable_result_names_no_contributing_inputs() -> None:
+    """Nothing produced a value, so nothing can be cited as having produced it."""
+    result = one_year_return(_daily(["100.00"]), computed_at=COMPUTED_AT)
+    assert result.status is ResultStatus.UNAVAILABLE
+    assert result.lineage.contributing == ()
 
 
 def test_computed_at_must_be_timezone_aware() -> None:

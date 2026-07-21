@@ -1,0 +1,341 @@
+{
+  "components": {
+    "schemas": {
+      "FreshnessDTO": {
+        "description": "When this was true and when it was computed (doc 10: freshness is mandatory).",
+        "properties": {
+          "as_of": {
+            "description": "Knowledge cutoff: nothing learned after this was used.",
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "computed_at": {
+            "format": "date-time",
+            "title": "Computed At",
+            "type": "string"
+          },
+          "diagnostics": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Typed numeric facts about how the value was reached, e.g. `anchor_offset_days: -3` meaning the anchor bar sat 3 days before the target.",
+            "title": "Diagnostics",
+            "type": "object"
+          },
+          "quality_flags": {
+            "description": "Opaque tags describing data conditions, e.g. `reference-version-drift`. Test membership; do not parse.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Quality Flags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "computed_at"
+        ],
+        "title": "FreshnessDTO",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InstrumentDTO": {
+        "description": "The instrument the metric describes, in canonical terms only.",
+        "properties": {
+          "id": {
+            "description": "Nivesh's internal instrument identifier \u2014 never a vendor symbol.",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "description": "EQUITY or INDEX.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "title": "InstrumentDTO",
+        "type": "object"
+      },
+      "LineageDTO": {
+        "description": "The \"why?\" panel's raw material (doc 10: lineage is a first-class capability).\n\n`contributing` names the observations that actually determined the value \u2014\ntypically two \u2014 while `scanned_count` reports how many the feature supplied. That\nsplit keeps the response proportional to the answer instead of to the history\nbehind it, without hiding how much data was considered.",
+        "properties": {
+          "contributing": {
+            "items": {
+              "$ref": "#/components/schemas/ObservationRefDTO"
+            },
+            "title": "Contributing",
+            "type": "array"
+          },
+          "feature_id": {
+            "title": "Feature Id",
+            "type": "string"
+          },
+          "feature_version": {
+            "title": "Feature Version",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The arguments the feature was invoked with.",
+            "title": "Parameters",
+            "type": "object"
+          },
+          "reference_version": {
+            "description": "The pinned reference-data snapshot in force at compute time.",
+            "title": "Reference Version",
+            "type": "string"
+          },
+          "scanned_count": {
+            "description": "How many observations the feature supplied, contributing or not.",
+            "title": "Scanned Count",
+            "type": "integer"
+          },
+          "source_refs": {
+            "description": "Opaque handles for every raw payload this value derives from.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Refs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "feature_id",
+          "feature_version",
+          "reference_version",
+          "scanned_count"
+        ],
+        "title": "LineageDTO",
+        "type": "object"
+      },
+      "MetricDTO": {
+        "description": "The number, or an explicit account of why there isn't one.",
+        "properties": {
+          "formula_version": {
+            "description": "The methodology version that produced this value. A formula change is a new version, never a silent edit.",
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "id": {
+            "description": "Stable metric identifier, e.g. `one_year_return`.",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResultStatus"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why no value could be produced. Present exactly when status is UNAVAILABLE.",
+            "title": "Unavailable Reason"
+          },
+          "unit": {
+            "description": "`ratio` \u2014 unitless. 0.12 means +12%, not a currency amount.",
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value, or null when status is UNAVAILABLE. Never 0 as a stand-in for a missing input.",
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "formula_version",
+          "unit",
+          "status"
+        ],
+        "title": "MetricDTO",
+        "type": "object"
+      },
+      "ObservationRefDTO": {
+        "description": "One canonical observation that contributed to the value.",
+        "properties": {
+          "event_time": {
+            "description": "The bar's own timestamp.",
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "knowledge_time": {
+            "description": "When the platform learned it.",
+            "format": "date-time",
+            "title": "Knowledge Time",
+            "type": "string"
+          },
+          "source_ref": {
+            "description": "Opaque, stable handle for the immutable raw payload behind this observation. Not a storage path; resolve it via the lineage API.",
+            "title": "Source Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_time",
+          "knowledge_time",
+          "source_ref"
+        ],
+        "title": "ObservationRefDTO",
+        "type": "object"
+      },
+      "OneYearReturnResponse": {
+        "description": "The endpoint's response \u2014 one metric, fully traced.",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/FreshnessDTO"
+          },
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentDTO"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/LineageDTO"
+          },
+          "metric": {
+            "$ref": "#/components/schemas/MetricDTO"
+          }
+        },
+        "required": [
+          "instrument",
+          "metric",
+          "freshness",
+          "lineage"
+        ],
+        "title": "OneYearReturnResponse",
+        "type": "object"
+      },
+      "ResultStatus": {
+        "description": "Whether an analytic produced a value or declined to.",
+        "enum": [
+          "AVAILABLE",
+          "UNAVAILABLE"
+        ],
+        "title": "ResultStatus",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Read-only market analytics. Every derived value is served with its lineage and freshness, so any number can be traced to the raw records and the formula version that produced it.",
+    "title": "Nivesh Terminal API",
+    "version": "v1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/instruments/{instrument_id}/metrics/one-year-return": {
+      "get": {
+        "operationId": "one_year_return_endpoint_v1_instruments__instrument_id__metrics_one_year_return_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument_id",
+            "required": true,
+            "schema": {
+              "title": "Instrument Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OneYearReturnResponse"
+                }
+              }
+            },
+            "description": "The metric with its lineage and freshness. A 200 with `status: UNAVAILABLE` means the instrument is known but the metric could not be computed; `unavailable_reason` says why."
+          },
+          "404": {
+            "description": "No instrument with this identifier exists."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One-year total return for an instrument",
+        "tags": [
+          "metrics"
+        ]
+      }
+    }
+  }
+}

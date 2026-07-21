@@ -29,6 +29,7 @@ this feature *inherits* the vendor's adjustment rather than verifying it.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -38,6 +39,10 @@ from backend.domain.model.instruments import REFERENCE_VERSION, reference_for
 from backend.domain.model.observations import PriceObservation
 from backend.domain.model.quantities import IndexLevel, Money, PriceValue
 from backend.platform.identifiers import InstrumentId
+
+#: L6's published contract for this feature: instrument + knowledge cutoff -> series.
+#: Named so L7 can depend on the *shape* of the feature without importing a repository.
+type ClosePriceSeriesProvider = Callable[[InstrumentId, datetime], ClosePriceSeries]
 
 FEATURE_ID = "close_price_series"
 FEATURE_VERSION = "close-price-series/v1"
@@ -62,6 +67,12 @@ class ClosePriceSeries:
 
     Points are ordered by `event_time`, ascending, and contain no observation the
     platform did not know about at `as_of`.
+
+    **Index invariant:** `points[i]` and `lineage.inputs[i]` describe the same
+    observation. An engine that identifies a point by position can therefore name the
+    canonical fact behind it — which is how a result reports its *contributing* inputs
+    rather than its whole scanned set. `input_for` is the supported way to make that
+    crossing; a test pins the invariant so it cannot rot silently.
     """
 
     instrument_id: InstrumentId
@@ -79,6 +90,10 @@ class ClosePriceSeries:
     @property
     def feature_version(self) -> str:
         return self.lineage.feature_version
+
+    def input_for(self, index: int) -> ObservationRef:
+        """The canonical observation behind `points[index]` (see the index invariant)."""
+        return self.lineage.inputs[index]
 
 
 def build_close_price_series(
@@ -135,6 +150,27 @@ def build_close_price_series(
             parameters=(("interval", interval),),
         ),
     )
+
+
+def close_price_series_provider(
+    repository: MarketDataRepository, *, interval: str = "1d"
+) -> ClosePriceSeriesProvider:
+    """Bind this feature to a repository, yielding a repository-free callable.
+
+    The result is L6's published contract in the form an engine can consume: give it an
+    instrument and a knowledge cutoff, get the versioned series. The repository is
+    captured here, in the only layer permitted to hold one (doc 08) — so L7 and L9 can
+    invoke the feature without ever seeing, importing, or being able to reach a
+    repository. Constructor injection, which is how every other seam in this codebase
+    already works (ED-011).
+    """
+
+    def provide(instrument_id: InstrumentId, as_of: datetime) -> ClosePriceSeries:
+        return build_close_price_series(
+            repository, instrument_id, as_of=as_of, interval=interval
+        )
+
+    return provide
 
 
 def to_float(price: PriceValue) -> float:

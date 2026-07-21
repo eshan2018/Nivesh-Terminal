@@ -25,6 +25,7 @@ from backend.features.returns import (
     FEATURE_VERSION,
     REFERENCE_DRIFT_FLAG,
     build_close_price_series,
+    close_price_series_provider,
     to_float,
 )
 from backend.platform.identifiers import InstrumentId
@@ -198,6 +199,32 @@ def test_lineage_pins_the_parameters_the_feature_was_called_with(
     repo.save_observations([_observation()])
     series = build_close_price_series(repo, APPLE, as_of=AS_OF, interval="1d")
     assert series.lineage.parameters == (("interval", "1d"),)
+
+
+def test_points_and_lineage_inputs_stay_index_aligned(
+    repo: SqliteMarketDataRepository,
+) -> None:
+    """The invariant the engine relies on to name its contributing inputs.
+
+    If these two ever drift apart, an engine would cite the wrong canonical fact as
+    the source of a number — lineage that is confidently wrong, which is worse than
+    lineage that is absent.
+    """
+    repo.save_observations([_observation(day=day, close=f"{100 + day}.00") for day in range(5)])
+    series = build_close_price_series(repo, APPLE, as_of=AS_OF)
+
+    assert len(series.points) == len(series.lineage.inputs) == 5
+    for index, point in enumerate(series.points):
+        assert series.input_for(index).event_time == point.event_time
+
+
+def test_a_bound_provider_yields_the_same_series_as_a_direct_call(
+    repo: SqliteMarketDataRepository,
+) -> None:
+    """The L6 contract L7 consumes must be the feature itself, not a variant of it."""
+    repo.save_observations([_observation(day=day) for day in range(3)])
+    provider = close_price_series_provider(repo)
+    assert provider(APPLE, AS_OF) == build_close_price_series(repo, APPLE, as_of=AS_OF)
 
 
 def test_lineage_names_every_observation_consumed(repo: SqliteMarketDataRepository) -> None:
