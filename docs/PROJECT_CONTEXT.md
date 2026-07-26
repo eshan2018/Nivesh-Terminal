@@ -45,14 +45,14 @@ code, not after.
 ```
 Phase                  **Phase 1 IN PROGRESS** — Portfolio Intelligence
                        (Phase 0.5 remains COMPLETE and FROZEN — see §0)
-Last milestone         M6a — portfolio risk & return engine (stateless)
-Next milestone         Phase 1 (see doc 15) — not started, not planned
+Last milestone         M6b-0 — live provider validated; real payload recorded
+Next milestone         M6b-1 — offline universe seeding (internal IDs + symbology)
 Current branch         main
 Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
                        v0.2-compute-slice           (L6–L7, compute half)
                        v0.3-walking-skeleton-complete (Phase 0.5 closed)
-Tests                  283 passing
+Tests                  290 passing
 Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
                        at M4a; L1–L7 remain stdlib-only)
 CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
@@ -81,7 +81,10 @@ CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
 ```
 Phase 1 · Portfolio Intelligence (stateless — no accounts, no persistence)
 ✓ M6a  Engine       return-series + aligned-matrix features; portfolio risk & return
-□ M6b  Universe     curated Nifty 50 subset (~25–30) + first live provider ingestion
+✓ M6b-0 Provider     live path validated; 400-bar real payload recorded as a fixture;
+                     findings in docs/implementation/05-provider-observations.md
+□ M6b-1 Universe     offline seeding — internal IDs + symbology for ~30 instruments
+□ M6b-2 Ingestion    live ingestion at scale; real numbers visible in the live pane
 □ M6c  Serve        POST /v1/portfolio/analysis + the portfolio pane
 □ M7   Diversification  correlation matrix + efficient frontier (second investor question)
 ```
@@ -370,6 +373,7 @@ docs/
                                    one-year-total-return v1 (+ golden seeding record)
     03-walking-skeleton-status.md  status snapshot (regenerate, don't hand-edit)
     04-recompute-rto.md            the recompute procedure + the measured RTO number
+    05-provider-observations.md    how the live provider actually behaves (M6b-0)
 
 backend/                      the layered app (45 modules, 173 tests)
   platform/                   kernel: InstrumentId
@@ -409,7 +413,22 @@ make serve       # run the API locally (needs the `serve` extra)
 
 ## 10 · Open items
 
-1. **Frontend test infrastructure — deferred to Phase 1 (deliberate, not an oversight).**
+1. **Data licensing — a PHASE 2 STRATEGIC DECISION, not an implementation task.**
+   The platform's only data source is `yfinance`, an **unofficial scraper of Yahoo Finance**,
+   and the raw store keeps vendor payloads permanently. Yahoo's terms restrict commercial
+   redistribution. For a free public good this is grey; **for a funded, commercial product it
+   is a first-meeting diligence question.**
+   *Status:* deliberately **not** solved during M6b — it is a business decision, not an
+   engineering one. **Before Phase 2 begins, a dedicated Licensing Strategy discussion** is
+   required, covering: commercial viability of the current source, licensed provider options
+   and their costs, migration paths, and the risks of each.
+   *Why this is not a crisis:* [ADR-0005](architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters)'s
+   port/adapter boundary means swapping providers is an adapter change, not a re-architecture —
+   the whole point of the abstraction. Doc 14 requires per-provider terms be captured as
+   enforceable metadata; that work belongs with the strategy, not before it.
+   *Risk accepted meanwhile:* a demo or pitch built on scraped data carries a dependency a
+   diligent investor will ask about. Know it before the meeting, not during it.
+2. **Frontend test infrastructure — deferred to Phase 1 (deliberate, not an oversight).**
    The L10 strangler pane has **no automated test**. Its behaviour was verified by running both
    halves together and killing the API mid-session (see §1), but nothing guards it in CI. Doc 11
    defines the test tiers for the backend and is silent on frontend unit testing, so this is a
@@ -423,12 +442,12 @@ make serve       # run the API locally (needs the `serve` extra)
    `UNREACHABLE` (site intact).
    *Risk accepted meanwhile:* a regression in the pane's degraded-state rendering would reach the
    live site undetected by CI.
-2. **Tag name caveat** — `v0.1-walking-skeleton` marks L1–L5 only (see §1 warning).
+3. **Tag name caveat** — `v0.1-walking-skeleton` marks L1–L5 only (see §1 warning).
    `v0.2-compute-slice` names its increment rather than the whole, so it carries no such trap.
-3. **One interpretation open to a second opinion** — L4 preserves native currency and does not
+4. **One interpretation open to a second opinion** — L4 preserves native currency and does not
    FX-convert (recorded in the plan's decision log). Changing it is a plan change, not an
    architecture change.
-4. **`source_ref` resolution is O(n)** — a lineage endpoint resolves a handle by scanning raw
+5. **`source_ref` resolution is O(n)** — a lineage endpoint resolves a handle by scanning raw
    object keys (proven in `backend/tests/api/test_source_ref_resolution.py`). Correct and cheap at
    skeleton scale; needs a stored `ref → key` index before real traffic. The published contract
    does not change when that index lands.
