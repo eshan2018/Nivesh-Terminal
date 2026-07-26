@@ -1,0 +1,31 @@
+{
+  "as_of": "2030-01-01T00:00:00+00:00",
+  "computed_at": "2026-07-22T12:00:00+00:00",
+  "diagnostics": {
+    "annualized_return": "0.049836795379312404",
+    "annualized_volatility": "0.20926249109266115",
+    "holdings_count": "2.0",
+    "overlapping_observations": "299.0",
+    "periods_per_year": "252.0",
+    "sharpe_ratio": "-0.09635364902427432",
+    "total_return": "0.05940293464074187",
+    "volatility_relative_standard_error": "0.04096159602595203"
+  },
+  "feature_versions": [
+    "return-series/v1",
+    "return-series/v1"
+  ],
+  "formula_version": "portfolio-risk-return/v1",
+  "lineage_parameters": {
+    "interval": "1d",
+    "risk_free_rate": "0.07",
+    "weights": "reliance=0.6,tcs=0.4",
+    "window_end": "2024-10-26T00:00:00+00:00",
+    "window_start": "2024-01-02T00:00:00+00:00"
+  },
+  "metric_id": "portfolio_risk_return",
+  "quality_flags": [],
+  "reference_version": "skeleton-reference/v1",
+  "status": "AVAILABLE",
+  "value": "0.05940293464074187"
+}

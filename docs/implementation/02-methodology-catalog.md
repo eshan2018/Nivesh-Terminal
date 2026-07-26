@@ -20,11 +20,17 @@ not advice") and the raw material for the explainability "why?" panel.
    implementation. A golden must never enshrine a first-write bug.
 3. **Determinism:** entries state any seed/parameters so results are reproducible ([doc 08](../architecture/08-analytics-framework.md)).
 4. **Limitations are mandatory**, not optional — the honest boundary of each metric.
+5. **Every entry names its investor question.** Nivesh Terminal is portfolio *intelligence*,
+   not a formula library: each engine exists to answer something an investor actually asks
+   ("How healthy is my portfolio?", "What risk am I taking?", "Can I trust this number?").
+   An entry that cannot name its question is a candidate for deletion, not documentation.
 
 ## Entry template
 ```markdown
 ### <feature-or-formula-id> · v<N>
 - **Kind:** feature (L6) | engine formula (L7)
+- **Investor question:** the question a real investor is asking that this answers. An
+  engine that answers none does not ship — a formula existing is not a reason to build it.
 - **Definition:** the precise computation, in words + notation.
 - **Inputs:** canonical entities / features consumed (with units).
 - **Output:** value + unit/currency (or ratio); AnalyticResult envelope fields populated.
@@ -164,8 +170,136 @@ not advice") and the raw material for the explainability "why?" panel.
 | **Guards** | Unintended methodology drift — the anchor rule, tolerance, tie-break, and envelope shape. Not correctness; the tests above own that. |
 | **Change rule** | Changing the golden requires a `formula_version` bump and review. Editing the values to match new output without one is the failure mode B10 exists to prevent. |
 
+
+### return_series · v1
+- **Kind:** feature (L6) — `backend/features/portfolio_returns.py`
+- **Investor question:** *(enabling)* — not user-facing on its own; it is the input every
+  risk statistic needs, because risk is a property of changes, not of price levels.
+- **Version string:** `return-series/v1`
+- **Definition:** From a `close_price_series`, the simple period return
+  `r_t = (P_t / P_{t-1}) − 1` for each consecutive pair. N prices yield N−1 returns; each
+  return is dated by the period **end**.
+- **Inputs:** `close_price_series/v1` (already past the C3 decimal→float seam).
+- **Output:** `ReturnSeries` — unitless floats, versioned, lineage-carrying.
+- **Assumptions:** consecutive observations represent consecutive trading periods; the
+  price series is adjusted (inherited from `close_price_series`).
+- **Limitations:**
+  1. **Simple, not log returns.** Simple returns aggregate correctly *across holdings* in
+     a portfolio, which is what this feeds; log returns aggregate correctly across *time*.
+     Using simple returns means the compounding step is explicit rather than additive.
+  2. A zero price makes a return undefined; that period is dropped and flagged
+     (`undefined-return-zero-denominator`) rather than reported as a number. The validation
+     gate rejects non-positive prices, so this guards a regression rather than normal data.
+- **Determinism:** pure given the price series. No clock, no randomness.
+- **Tests:** `backend/tests/features/test_portfolio_returns.py`.
+
+### aligned_return_matrix · v1
+- **Kind:** feature (L6) — `backend/features/portfolio_returns.py`
+- **Investor question:** *(enabling)* — "are these holdings even comparable over the same
+  period?" Getting this wrong is the quietest way to publish a wrong risk number.
+- **Version string:** `aligned-return-matrix/v1`
+- **Definition:** For N instruments, the return series of each restricted to the dates
+  present in **every** series (set intersection), ordered ascending. Column *i* corresponds
+  to instrument *i*; every column has exactly the length of the aligned date vector.
+- **Output:** `AlignedReturnMatrix`, carrying its effective window and one `FeatureRef`
+  per holding.
+- **Assumptions:** a date present for every holding represents the same trading session.
+- **Limitations:**
+  1. **Intersection, never fill.** Forward-filling, zero-filling or interpolating a missing
+     date would invent a return that never happened and would flow into volatility and
+     correlation undetected — understating risk. The date is dropped for all holdings
+     instead, and `window-shortened-by-alignment` is flagged when that discards data.
+  2. **A short-history holding shortens the whole window.** Adding a recently listed stock
+     to a long-established portfolio measures every holding over the newcomer's brief life.
+     That is visible in the published window and observation count, not hidden.
+  3. No survivorship handling: a delisted instrument simply has no later observations.
+- **Determinism:** pure given the repository contents and `as_of`.
+- **Tests:** as above — alignment has the largest share of them, deliberately.
+
+### portfolio-risk-return · v1
+- **Kind:** engine formula (L7) — `backend/analytics/portfolio_risk_return.py`
+- **Investor question:** **"How has my portfolio performed, and how much risk did I take to
+  get there?"** Four individual return figures do not tell an investor whether the whole was
+  steady or violent, or whether the return justified the ride.
+- **Version string:** `portfolio-risk-return/v1`
+- **Definition:** Given an aligned return matrix, weights `w` summing to 1, and an
+  annualized risk-free rate `rf`:
+
+  > **portfolio period return** `r_p,t = Σ_i w_i · r_i,t`
+  > **total return** `Π_t (1 + r_p,t) − 1`
+  > **annualized return** `(1 + total)^(periods/n) − 1`  *(geometric / CAGR)*
+  > **annualized volatility** `stdev(r_p, sample n−1) × √periods`
+  > **Sharpe** `(annualized return − rf) / annualized volatility`
+
+  `periods` = 252 for daily bars, 52 for weekly.
+- **Inputs:** `aligned_return_matrix/v1` + explicit parameters (weights, `rf`). **No
+  repository access** (doc 08 / ADR-0014).
+- **Output:** `AnalyticResult` whose **value is the total return**; annualized return,
+  volatility, Sharpe and the confidence figures travel as typed `diagnostics` (ED-013), and
+  the weights, `rf` and effective window are pinned in `lineage.parameters` (ED-016).
+- **Assumptions:**
+  1. **Fixed weights (continuously rebalanced).** The portfolio is assumed held at constant
+     weights throughout the window.
+  2. Returns are treated as a sample of a stationary process for the volatility estimate.
+  3. `rf` is annualized, supplied by the caller, and recorded — the platform does not
+     invent one.
+- **Limitations:**
+  1. **A real buy-and-hold portfolio drifts from its weights.** As holdings move, actual
+     weights diverge from the stated ones; this measures the rebalanced portfolio, which
+     will differ — sometimes materially — from an untouched one.
+  2. **Volatility is backward-looking** and is not a forecast. Its own imprecision is
+     published as `volatility_relative_standard_error`.
+  3. **Sharpe is undefined at zero volatility** and is then omitted, with the flag
+     `sharpe-undefined-zero-volatility` — never reported as 0.0.
+  4. **No short positions** (negative weights refused) and **no mixed currencies** (refused
+     pending `FXRate`): weighting local-currency returns across currencies silently omits
+     the exchange-rate move, often the larger effect.
+  5. **Equities and ETFs only.** An index is not ownable; treating one as a holding would
+     report the index's movement while omitting the fees and tracking error of the fund an
+     investor actually holds.
+  6. **Not advice**, and not a forecast (doc 14).
+- **Refusal reasons** (absence with a reason, never a fabricated number — principle 13):
+  | Reason | Condition |
+  |---|---|
+  | `no-holdings-supplied` | Empty portfolio. |
+  | `weights-do-not-match-holdings` | Weight/holding/reference counts disagree. |
+  | `weights-must-sum-to-one` | Sum outside 1 ± 1e-6. Never silently renormalized. |
+  | `negative-weights-unsupported-no-short-positions` | Any weight < 0. |
+  | `mixed-currency-portfolio-unsupported-pending-fx-data` | More than one currency. |
+  | `portfolio-supports-equities-and-etfs-only` | Any holding is not EQUITY or ETF. |
+  | `insufficient-overlapping-history-for-a-reliable-estimate` | Fewer than 50 aligned observations (derivation below). |
+  | `unsupported-interval-for-annualization` | Interval outside {1d, 1wk}. |
+- **The 50-observation threshold is derived, not chosen.** For returns treated as
+  independent draws, the relative standard error of a sample volatility estimate is
+  ≈ `1/√(2(n−1))`. At n = 50 that is ~10.1% — a "20% volatility" reading is really 20% ± 2%.
+  Below that the estimate is too imprecise to show. **It is a floor, not a guarantee:** real
+  returns have fat tails and volatility clustering, so the true error is larger. That is
+  precisely why the actual figure is *published* with every result — the threshold decides
+  whether to answer; the published error says how far to trust the answer.
+- **Confidence metadata published with every available result:** `overlapping_observations`,
+  `volatility_relative_standard_error`, `periods_per_year`, `holdings_count`, plus
+  `window_start`/`window_end` and the weights and `rf` in lineage parameters.
+- **References:** the prototype's `compute_portfolio_frontier` / `portfolio_stats` are the
+  reference for shape, **ported behind the engine contract, not lifted** (ADR-0014).
+  Deliberate differences: geometric rather than mean-compounded annualization; Sharpe
+  omitted rather than zeroed when undefined; explicit `rf` rather than an embedded default.
+- **Determinism:** pure. No I/O, clock or randomness; `computed_at` is an explicit argument.
+- **Tests:** `backend/tests/analytics/test_portfolio_risk_return.py` — reference values,
+  five properties (single-holding identity, non-negative volatility, order invariance,
+  determinism, diversification never adds risk), parity with an independently written
+  implementation, and every refusal path.
+
+#### Golden-master seeding record (doc 11 B10)
+| | |
+|---|---|
+| **Golden** | `backend/tests/analytics/golden/portfolio_risk_return_v1.json` |
+| **Seeded** | 2026-07-22, during M6a |
+| **Procedure** | Property and parity tests written and green **first** (`make check` at 282 tests, no golden present); engine then cross-checked against the independent implementation on the golden fixture — **relative difference 0.000e+00**; only then was the golden written. |
+| **Change rule** | Changing it requires a `formula_version` bump and review. |
+
 ## Change log
 | Date | Change |
 |------|--------|
 | 2026-07-17 | Catalog established (M1, Phase 0 convention). No entries yet; first entry lands in M3. |
 | 2026-07-18 | **First entries authored (M3):** `close_price_series · v1` (L6, the C3 seam) and `one-year-total-return · v1` (L7). Golden-master seeding record added after property + parity tests passed. |
+| 2026-07-22 | **M6a entries added:** `return_series · v1`, `aligned_return_matrix · v1`, `portfolio-risk-return · v1`. Entry template gains a mandatory **Investor question** field — Nivesh Terminal ships portfolio intelligence, not a formula library, so an engine that answers no investor question does not ship. |

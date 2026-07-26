@@ -1,6 +1,8 @@
 # Project Context — Nivesh Terminal
 
 **Hand-off brief for any new session. Read this first, then the linked docs.**
+**This is the single authoritative hand-off document.** There is no separate product-context
+file; product intent lives in §2 below.
 Last updated: 2026-07-22 · reference state: tag `v0.3-walking-skeleton-complete`
 
 ---
@@ -41,15 +43,16 @@ code, not after.
 ## 1 · Current progress
 
 ```
-Phase                  **Phase 0.5 (Walking Skeleton) COMPLETE — FROZEN**
-Last milestone         M5 (DAG + recompute RTO) — Phase 0.5 DoD met in full
+Phase                  **Phase 1 IN PROGRESS** — Portfolio Intelligence
+                       (Phase 0.5 remains COMPLETE and FROZEN — see §0)
+Last milestone         M6a — portfolio risk & return engine (stateless)
 Next milestone         Phase 1 (see doc 15) — not started, not planned
 Current branch         main
 Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
                        v0.2-compute-slice           (L6–L7, compute half)
                        v0.3-walking-skeleton-complete (Phase 0.5 closed)
-Tests                  246 passing
+Tests                  283 passing
 Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
                        at M4a; L1–L7 remain stdlib-only)
 CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
@@ -76,8 +79,11 @@ CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
 **Remaining**
 
 ```
-—  Phase 0.5 is complete. Phase 1 (doc 15) re-hardens the domain model and re-cuts the
-   throwaway endpoint on it; it is neither started nor planned.
+Phase 1 · Portfolio Intelligence (stateless — no accounts, no persistence)
+✓ M6a  Engine       return-series + aligned-matrix features; portfolio risk & return
+□ M6b  Universe     curated Nifty 50 subset (~25–30) + first live provider ingestion
+□ M6c  Serve        POST /v1/portfolio/analysis + the portfolio pane
+□ M7   Diversification  correlation matrix + efficient frontier (second investor question)
 ```
 
 > ✅ **Phase 0.5 (Walking Skeleton) is COMPLETE** — all 9 of its milestones, 9 of 10 layers.
@@ -101,7 +107,7 @@ CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
 
 ---
 
-## 2 · North star
+## 2 · North star & product principles
 
 Nivesh Terminal aims to become an **institutional-grade wealth intelligence platform for Indian
 retail investors**, built with production engineering discipline. Every implementation decision
@@ -111,6 +117,69 @@ source data and the formula that produced it.
 
 It is explicitly **not** a stock screener, **not** an AI chatbot, **not** a scoring engine —
 those are modules on a shared foundation, never the core.
+
+### Product principles (binding, from 2026-07-22)
+
+1. **Indian retail investors first.** Every decision resolves toward that user.
+2. **The Bloomberg Terminal for retail investors** — not by copying Bloomberg, but by making
+   institutional-grade financial intelligence understandable and accessible.
+3. **Every feature answers a real investor question or improves an investment decision.**
+   Infrastructure exists only to enable user-facing value, never as an objective in itself.
+   A feature that answers none of these should be challenged, not built:
+   *What do I own? · How healthy is my portfolio? · Why did this happen? · What risks am I
+   taking? · What should I do next? · Can I trust this number?*
+4. **Ship complete vertical slices over completing roadmap phases in order.** Product value
+   takes precedence over roadmap sequence — **provided Architecture v2.0, the ADRs and every
+   engineering boundary remain intact.** See the sequencing note below.
+5. **Stateless before accounts.** Authentication, saved portfolios and workspaces stay
+   deferred until they create clear product value.
+6. **When product direction is uncertain, ask** — do not assume.
+
+### The Intelligence lens (binding, 2026-07-22)
+
+Nivesh Terminal is an **intelligence platform, not an analytics platform**. A feature is
+measured not by how many metrics it exposes but by how much better an investor understands
+their position after using it. **Phase 1's success criterion is a feeling:** *"I understand
+my portfolio better than I did five minutes ago."*
+
+- **Every feature begins from an investor question**, not a formula. A capability that
+  answers none is challenged before it is built. Metrics support decisions; they are not
+  the product.
+- **Engines compute; the product explains.** Keep the technical metrics (volatility,
+  Sharpe, correlation, drawdown) — **never remove them** — and layer investor-facing
+  interpretation *above* them (Risk Level, Portfolio Health, Diversification Quality,
+  Things Requiring Attention). Interpretation is deterministic, testable and
+  lineage-preserving like any other engine output.
+- **Explain before recommending.** For every result: *why · what contributed · what was
+  assumed · how confident · what to watch.*
+- **Think in capabilities, not indicators.** New ideas (promoter pledging, USD
+  appreciation, G-Secs, sector concentration, core-satellite investing…) attach to an
+  Intelligence capability — Portfolio · Risk · Ownership · Currency · Macro · Sector · Debt
+  · Opportunity · AI Research — and evolve across milestones rather than landing as
+  isolated features.
+- **When a metric and understanding trade off, choose understanding.**
+
+**Milestone proposals now open with an "Investor Value" section:** (1) the investor
+question answered; (2) why it matters to an Indian retail investor; (3) the actionable
+understanding gained; (4) why it is the highest-leverage next step.
+
+This is a planning lens only. Architecture v2.0, ADR/ED governance, layering, contracts,
+determinism, lineage, testing and CI are unchanged and mandatory.
+
+### Sequencing note — doc 15 is a planning document
+
+**[Doc 15](architecture/15-development-roadmap.md) is treated as an implementation roadmap,
+not an architectural contract** (ruling, 2026-07-22). Delivery is reprioritized for user
+value; its phase *numbering* is not binding, and departing from it needs **no ADR**.
+
+What remains binding: every architectural boundary, the layer dependency direction, published
+contracts, and the ADR/ED governance. **Architecture is not changed to accelerate delivery.**
+
+This is consistent with how the roadmap has already been treated — Phase 0.5 itself built an
+API that doc 15's Phase 1 lists under "do NOT build yet", sanctioned by
+[ADR-0020](architecture/18-architecture-decision-records.md#adr-0020--walking-skeleton-first-strangle-the-prototype).
+Phase 1 therefore leads with **Portfolio Intelligence** and pulls in only the canonical-model
+and universe work that capability actually requires.
 
 ---
 

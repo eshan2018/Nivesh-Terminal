@@ -24,8 +24,26 @@ REFERENCE_VERSION = "skeleton-reference/v1"
 
 
 class InstrumentType(StrEnum):
+    """What kind of thing this is, which determines its units and valid analytics.
+
+    Doc 04 enumerates the instrument kinds the model must eventually carry — "equity,
+    ETF, index, FX pair, bond, rate". Only the kinds the platform actually ingests are
+    declared here; the rest arrive with the data classes that need them.
+    """
+
     EQUITY = "EQUITY"
+    #: An exchange-traded fund. Priced and traded like an equity, and — decisively for
+    #: analytics — it has the same continuous, ownable, total-return price series. A
+    #: holder owns units with a market value, which an index level is not.
+    ETF = "ETF"
     INDEX = "INDEX"
+
+
+#: Kinds denominated in a currency. An index is the deliberate exception: its levels are
+#: unitless points, which is what makes FX-converting one type-impossible (doc 04).
+_CURRENCY_DENOMINATED: frozenset[InstrumentType] = frozenset(
+    {InstrumentType.EQUITY, InstrumentType.ETF}
+)
 
 
 class UnknownInstrument(LookupError):
@@ -42,12 +60,17 @@ class InstrumentReference:
     currency: Currency | None
 
     def __post_init__(self) -> None:
-        if self.type is InstrumentType.EQUITY and self.currency is None:
-            raise ValueError(f"{self.instrument_id} is an EQUITY and must have a currency")
-        if self.type is InstrumentType.INDEX and self.currency is not None:
+        # Stated as a rule over kinds rather than a chain of per-kind branches, so a new
+        # instrument kind declares its units once instead of being forgotten here.
+        if self.type in _CURRENCY_DENOMINATED and self.currency is None:
             raise ValueError(
-                f"{self.instrument_id} is an INDEX: index levels are unitless points and "
-                "must not carry a currency (doc 04 — FX conversion must be impossible)"
+                f"{self.instrument_id} is a {self.type.value} and must have a currency"
+            )
+        if self.type not in _CURRENCY_DENOMINATED and self.currency is not None:
+            raise ValueError(
+                f"{self.instrument_id} is a {self.type.value}: its levels are unitless "
+                "points and must not carry a currency (doc 04 — FX conversion must be "
+                "type-impossible)"
             )
 
 

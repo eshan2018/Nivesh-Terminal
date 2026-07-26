@@ -56,7 +56,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 3. **The Configuration Source is authoritative for reproducibility.** The prose here explains
    *why*; the config file is the *what* that CI/deploys actually consume.
 4. **No duplication with ADRs.** An ED cites the ADR it realizes; it does not re-decide it.
-5. **IDs are permanent and never reused;** next id is **ED-016**.
+5. **IDs are permanent and never reused;** next id is **ED-017**.
 
 ---
 
@@ -78,6 +78,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | [ED-013](#ed-013--typed-diagnostics-on-the-analyticresult-envelope) | Typed diagnostics on the envelope | Accepted | doc 04, ADR-0014 |
 | [ED-014](#ed-014--strangler-seam--server-side-proxy-rather-than-cors) | Strangler seam — server-side proxy, not CORS | Accepted | ADR-0020, doc 10/13 |
 | [ED-015](#ed-015--skeleton-orchestration--stdlib-dag-orchestrator-product-deferred) | Skeleton orchestration — stdlib DAG; orchestrator product deferred | Accepted | doc 16, ED-005 |
+| [ED-016](#ed-016--engine-parameters-recorded-in-the-lineage-handle) | Engine parameters recorded in the lineage handle | Accepted | doc 04, doc 08, ADR-0014/0017 |
 
 ---
 
@@ -447,6 +448,35 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
   `tools/recompute_rto.py`, `Makefile` (`make recompute`).
 - **Related Architecture Documents:** [doc 16](../architecture/16-data-orchestration-and-freshness.md), [doc 12](../architecture/12-deployment-strategy.md), [doc 15](../architecture/15-development-roadmap.md); complements [ED-005](#ed-005--orchestrator-product) (still `Proposed`).
 
+### ED-016 · Engine parameters recorded in the lineage handle
+- **Status:** Accepted
+- **Context:** `AnalyticResult` recorded the features an engine consumed and the parameters
+  each *feature* was called with, but not the parameters the **engine** was invoked with.
+  That gap was invisible while the only engine was `one_year_return`, which takes none. It
+  became load-bearing with `portfolio_risk_return`: the same holdings under different
+  weights, or a different risk-free rate, are different portfolios producing different
+  numbers from identical inputs. Without the parameters, such a result names its inputs but
+  not its invocation, and **is not reproducible from its own envelope** — which
+  [ADR-0017](../architecture/18-architecture-decision-records.md#adr-0017--first-class-lineage-with-three-guarantee-tiers)'s *recomputable* tier requires. [Doc 08](../architecture/08-analytics-framework.md) already names "explicit parameters
+  (window, method, risk-free source…)" as part of the engine contract.
+- **Decision:** Add `LineageHandle.parameters: tuple[tuple[str, str], ...]` — the engine's
+  invocation arguments, mirroring the existing `FeatureRef.parameters`. Additive, spending
+  [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines)'s revisit clause ("extend it additively"), under the same classification the
+  ED-012/ED-013 decisions established. **ADR-0021 remains unused.**
+- **Alternatives Considered:** *encode parameters into diagnostics* — `diagnostics` is
+  typed `float` by [ED-013](#ed-013--typed-diagnostics-on-the-analyticresult-envelope) and weights, windows and rates are not all numeric; widening it
+  would undo that decision. *Put them in `FeatureRef.parameters`* — wrong owner: weights and
+  the risk-free rate are engine inputs, not feature inputs, and attributing them to a
+  feature would misstate what produced what. *Omit them* — leaves parameterized results
+  unreproducible, which is the defect.
+- **Consequences:** Any parameterized engine's result is now reproducible from its envelope
+  alone. Sorted string pairs keep the frozen envelope hashable and comparison deterministic.
+  Existing results are unaffected: the field defaults to empty, and `one_year_return`
+  continues to emit nothing.
+- **Configuration Source:** `backend/domain/model/analytics.py` (`LineageHandle.parameters`);
+  `backend/analytics/portfolio_risk_return.py` (first producer).
+- **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md), [doc 08](../architecture/08-analytics-framework.md), [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines), [ADR-0017](../architecture/18-architecture-decision-records.md#adr-0017--first-class-lineage-with-three-guarantee-tiers).
+
 ---
 
 ## Change log
@@ -461,3 +491,4 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | 2026-07-19 | **ED-003 revised** (M4a): the SQLite dev backend is now thread-safe — `check_same_thread=False` plus a lock serializing every statement. | M2d's "single-threaded pipeline" assumption was invalidated by M4's serving plane; a threaded ASGI worker calls the repository from arbitrary threads. Recorded explicitly as a development implementation choice, not a scalability strategy: the lock serializes all access and does not travel to the Postgres implementation. New accepted cost: concurrency behaviour is unproven until deploy, so load and RTO numbers must be re-measured against Postgres. |
 | 2026-07-22 | **ED-014 recorded** during M4b: the strangler seam is a same-origin Next.js proxy, so no CORS middleware is added to the API. `backend/main.py` established as the ED-011 composition root and declared in `architecture_map.py`, with a guardrail test asserting it is the only unlayered module under `backend/`. | The dependency lint skips modules belonging to no layer, so an undeclared entry point would have been silently exempt from every rule. Declaring it turns a blind spot into a checked invariant. Next id: ED-015. |
 | 2026-07-22 | **ED-015 recorded** during M5: the skeleton's DAG is a stdlib task graph; ED-005 (Dagster) stays `Proposed` and no orchestration framework is introduced. | Doc 16 owns the orchestration *model* and defers the *product* to doc 12, banning ad-hoc cron only above the walking skeleton. The model's requirements — declared order, keyed idempotent tasks, runs as lineage events — are met without a framework. The capabilities that will force the product (scheduling, retries, backfill, invalidation cascades) are enumerated in the ED so the trigger is explicit. Next id: ED-016. |
+| 2026-07-22 | **ED-016 recorded** during M6a (Phase 1): engine invocation parameters are pinned in the lineage handle. | The first parameterized engine (`portfolio_risk_return`) exposed that a result recorded its inputs but not its invocation — the same holdings under different weights were indistinguishable in the envelope, so the result was not reproducible from it. Additive, under the ADR-0014 clause and the ED classification already set for ED-012/013. Next id: ED-017. |

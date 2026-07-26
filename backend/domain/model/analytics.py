@@ -99,6 +99,15 @@ class LineageHandle:
 
     features: tuple[FeatureRef, ...]
     contributing: tuple[ObservationRef, ...] = ()
+    parameters: tuple[tuple[str, str], ...] = ()
+    """The arguments the *engine* was invoked with — weights, a risk-free rate, a window.
+
+    Distinct from `FeatureRef.parameters`, which records how each feature was called.
+    A parameterized engine is not reproducible without these: `one_year_return` takes no
+    parameters, so the gap only appeared when `portfolio_risk_return` arrived, where the
+    same holdings under different weights are different portfolios producing different
+    numbers from identical inputs (ED-016).
+    """
 
     def scanned_count(self) -> int:
         """How many observations the features supplied, contributing or not."""
