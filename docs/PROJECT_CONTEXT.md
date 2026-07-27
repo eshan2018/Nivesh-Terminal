@@ -3,7 +3,7 @@
 **Hand-off brief for any new session. Read this first, then the linked docs.**
 **This is the single authoritative hand-off document.** There is no separate product-context
 file; product intent lives in §2 below.
-Last updated: 2026-07-22 · reference state: tag `v0.3-walking-skeleton-complete`
+Last updated: 2026-07-24 · `main` @ M6b-0 · reference state: tag `v0.3-walking-skeleton-complete`
 
 ---
 
@@ -29,7 +29,7 @@ migration to reverse. Next id: **ADR-0021, still unused.** Nine milestones were 
 without spending one; that is evidence the architecture was sufficient, and the bar for the
 first one should stay high.
 
-**Implementation choices remain Engineering Decisions** (next id: **ED-016**) and do not
+**Implementation choices remain Engineering Decisions** (next id: **ED-018**) and do not
 need an ADR. The distinction and its litmus are in
 [doc 01](implementation/01-engineering-decisions.md); when in doubt, classify before writing
 code, not after.
@@ -46,7 +46,8 @@ code, not after.
 Phase                  **Phase 1 IN PROGRESS** — Portfolio Intelligence
                        (Phase 0.5 remains COMPLETE and FROZEN — see §0)
 Last milestone         M6b-0 — live provider validated; real payload recorded
-Next milestone         M6b-1 — offline universe seeding (internal IDs + symbology)
+Next milestone         M6b-1 — universe seeding + identity verification
+                       (design settled, see §11 — implementation not started)
 Current branch         main
 Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
@@ -83,7 +84,7 @@ Phase 1 · Portfolio Intelligence (stateless — no accounts, no persistence)
 ✓ M6a  Engine       return-series + aligned-matrix features; portfolio risk & return
 ✓ M6b-0 Provider     live path validated; 400-bar real payload recorded as a fixture;
                      findings in docs/implementation/05-provider-observations.md
-□ M6b-1 Universe     offline seeding — internal IDs + symbology for ~30 instruments
+□ M6b-1 Universe     seed ~15–20 commonly-held securities with verified identity (§11)
 □ M6b-2 Ingestion    live ingestion at scale; real numbers visible in the live pane
 □ M6c  Serve        POST /v1/portfolio/analysis + the portfolio pane
 □ M7   Diversification  correlation matrix + efficient frontier (second investor question)
@@ -168,6 +169,31 @@ understanding gained; (4) why it is the highest-leverage next step.
 
 This is a planning lens only. Architecture v2.0, ADR/ED governance, layering, contracts,
 determinism, lineage, testing and CI are unchanged and mandatory.
+
+### The intelligence pipeline (settled, 2026-07-24)
+
+Never reason as *metric → interpretation*. Reason in six stages:
+
+```
+Investor Question → Evidence → Deterministic Reasoning → Deterministic Judgement
+                  → Narrative & Conversation → Lineage
+```
+
+- **Evidence** is objective financial fact — the metric engines (L7). `portfolio-risk-return/v1`
+  is the first of these: it produces traced, confidence-bearing numbers and interprets nothing.
+- **Deterministic judgement** is a distinct stage: investor-meaningful verdicts ("underperformed
+  the risk-free benchmark", "high concentration") built entirely from **transparent rules with
+  complete lineage and exact tests**. Deterministic, testable, traceable — not AI.
+- **Narrative** is where L8/AI belongs, and only there.
+
+**The rule that protects the product's identity: AI never authors a judgement — it explains one.**
+Truth comes from computation, rules and evidence; language comes from the layer above. A platform
+whose numbers are produced by a probabilistic model cannot make the verifiability claim this
+product is built on.
+
+**Where the judgement layer lives is deliberately undecided.** It is *not* forced into L7 or L8
+ahead of need; the placement will be settled when the first judgement capability is actually
+built. Recorded so a future reader knows the omission is a decision, not an oversight.
 
 ### Sequencing note — doc 15 is a planning document
 
@@ -293,6 +319,31 @@ server runs it is a deployment choice (ED-002).
 ---
 
 ## 6 · Governance rules — binding
+
+### The founder–architect operating model (settled, 2026-07-24)
+
+How decisions get made here, recorded because it is easy to lose and expensive to rediscover:
+
+1. **The architect thinks independently and challenges weaker decisions.** Do not optimize for
+   agreement. When you disagree: explain why, give the trade-offs, recommend, and keep pressing
+   until the trade-offs are genuinely explored. **Do not become a passive executor.**
+2. **Once the founder makes a conscious decision after hearing the reasoning, that decision is
+   the new constraint** — converge and execute it to the highest standard rather than
+   relitigating.
+3. **The founder does not override architecture casually**, and explains the product rationale
+   when pushing back. The same rigor is expected on the engineering side.
+4. **Reasoning order for any feature or milestone:** what investor problem does this solve? ·
+   does it strengthen Nivesh Terminal's identity? · does it respect the architecture? · is it
+   the simplest implementation that achieves the objective? · does it create unnecessary future
+   complexity? This is a *reasoning* order, not a precedence order — **architecture remains a
+   hard gate**, overridable only by a conscious ADR.
+5. **Every milestone proposal opens with an "Investor Value" section:** the investor question
+   answered · why it matters to an Indian retail investor · the actionable understanding gained
+   · why it is the highest-leverage next step. Milestone objectives are written from the
+   investor's perspective, never the engineering perspective.
+6. **Risks are surfaced before implementation, not during it.** Milestones stay independently
+   mergeable. Repository history is a record of *knowledge*, not just code.
+
 
 1. **Never redesign the architecture.** `docs/architecture/` is frozen and authoritative.
 2. **Never modify architecture documents** unless explicitly asked for an ADR.
@@ -454,82 +505,40 @@ make serve       # run the API locally (needs the `serve` extra)
 
 ---
 
-## 11 · Pre-M4 design decisions — **RESOLVED**
+## 11 · M6b-1 — approved design (implementation not started)
 
-Two questions the M3 code review raised that M3 could defer and M4 cannot. Both are invisible
-until something serializes the `AnalyticResult`; M4 is the first thing that does. Both are
-recorded here rather than left in conversation so the next engineer does not have to reconstruct
-the reasoning.
+The next milestone's design is **settled and approved**; only the code is outstanding. Recorded
+here so a new session implements the agreed design rather than re-deriving it.
 
-**Both options A extend the envelope.** [Doc 04](architecture/04-canonical-domain-model.md) owns
-the envelope's shape and [doc 08](architecture/08-analytics-framework.md) may not alter it.
-[ADR-0014](architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines)'s
-revisit clause pre-authorizes *additive* extension ("If the envelope proves insufficient for a new
-analytic class, extend it additively (owned by doc 04, ADR-0004)"). **Classification decided 2026-07-19: Engineering Decision, not ADR** — additive extension spends
-ADR-0014's clause; no boundary, contract direction, or migration is involved, and reversal is a
-field deletion. Recorded as **ED-012** and **ED-013**. **ADR-0021 remains unused.**
+**Investor question:** *"When I add HDFC Bank to my portfolio, am I actually getting HDFC Bank?"*
+The failure this prevents is the one nobody notices — a wrong ticker yields a plausible number,
+correctly computed and fully traced, that belongs to a different company. India makes this easy:
+HDFC Ltd merged into HDFC Bank; Bajaj Finance vs Bajaj Finserv; `.NS`/`.BO` silently switch
+exchange. *A number that knows it is wrong we refuse to show. A number that thinks it is right is
+what destroys trust.*
 
----
+**Approved decisions**
 
-### Decision 1 — Lineage granularity in a served result
+| | Decision |
+|---|---|
+| **A** | Add **exchange to the canonical model as MIC codes** (`XNSE`/`XBOM`). Vendor codes (Yahoo's `NSI`) stay inside the adapter — doc 06. |
+| **B** | **Verify only what the vendor can genuinely corroborate.** ETF classification is recorded as *our own canonical knowledge*, not force-fitted to a vendor field. |
+| **C** | **~15–20 of the most commonly held Indian retail securities**, including a few representative ETFs. **Breadth is explicitly not the goal** — proving portfolio intelligence against securities investors actually own is. Expansion is incremental once the capability is proven. |
+| **D** | **Permanent readable slugs** as opaque internal identifiers (`hdfc-bank`, `infosys`). Never shown as a name; never regenerated on rename or merger. |
+| **+** | **ISIN** (optional) and **aliases** carried in the seed — see [ED-017](implementation/01-engineering-decisions.md#ed-017--canonical-instrument-identity--mic-exchange-isin-and-aliases). |
 
-**Context.** `AnalyticResult.lineage.features[].inputs` currently carries one `ObservationRef`
-(instrument id, `event_time`, `knowledge_time`, full `Provenance`) for **every observation the
-feature scanned**. A 400-bar series produces 400 of them. The engine reads exactly **two**: the
-anchor and the end bar. Serializing that into a DTO makes a single-metric response several
-kilobytes of lineage the caller cannot use, and materializing results (doc 07) multiplies it.
+**What verification means here.** Not "data exists" but **"the data belongs to the instrument we
+believe it does."** Verify strictly what the vendor can corroborate — currency, exchange, market,
+index-vs-not — and record honestly what it cannot. *A verification that always passes verifies
+nothing.*
 
-**Option A — distinguish contributing inputs from scanned inputs (recommended).**
-The engine names the observations that actually determined the value; the response carries those
-plus a scanned count plus the de-duplicated raw object keys.
-- *For:* response stays proportional to the answer, not the history. The "why?" panel shows the
-  two bars that produced the number — which is what a user asking "why?" actually wants.
-  Recomputability survives: raw object keys, feature version and feature parameters are all
-  still pinned, so the series can be rebuilt and the result re-derived.
-- *Against:* requires a small additive envelope field. Shifts the recomputability argument from
-  "here is every input" to "here is how to rebuild every input" — weaker on paper, though
-  ADR-0017's *recomputable* tier asks for reproducibility, not an inline copy of the inputs.
+**Design constraint: CI stays hermetic.** Seed data and its consistency tests are offline;
+verification is a **deliberate tool** producing a **committed, dated evidence report** — the
+pattern M6b-0 established. A network call in CI would forfeit the reproducibility guarantee
+everything else rests on (doc 11).
 
-**Option B — serve the full scanned set.**
-- *For:* maximal literal traceability; no envelope change; no new concept.
-- *Against:* payload grows without bound as history grows; the differentiator becomes a
-  performance problem exactly where users first meet it.
-
-**Option C — lineage by reference (a second endpoint returns the full chain).**
-- *For:* smallest response; doc 10 explicitly sanctions it ("expose **or link to** the
-  `AnalyticResult` envelope").
-- *Against:* a second endpoint, which M4's own fence forbids. **This is the likely Phase-1
-  shape** — A is forward-compatible with it.
-
-**Status: APPROVED 2026-07-19 → Option A. Implemented as ED-012.** C remains the Phase-1 successor.
-
----
-
-### Decision 2 — Anchor-offset representation
-
-**Context.** When the one-year target date has no bar, the engine uses the nearest bar within
-7 days and publishes the actual offset as the string `anchor-offset-days:-3` inside
-`quality_flags` — a tuple of otherwise-opaque tags (`stale-series`, `reference-version-drift`).
-Recovering the number means string-parsing a flag.
-
-**Option A — typed diagnostics field; flags stay opaque tags (recommended).**
-- *For:* `quality_flags` keeps one meaning (a set of tags you test membership in). The offset
-  becomes a typed JSON number. Any consumer treating flags as opaque — the correct reading —
-  stops silently dropping the information.
-- *Against:* additive envelope field (see classification note above).
-
-**Option B — keep it in the flag string; the DTO parses it out.**
-- *For:* no envelope change.
-- *Against:* puts parsing logic at the API edge, which doc 10 forbids ("the API is a thin,
-  validated projection"). Every future consumer reimplements the same split.
-
-**Option C — drop the offset from the response.**
-- *For:* simplest.
-- *Against:* the caller can no longer tell a 365-day window from a 368-day one. The methodology
-  catalog lists that approximation as a mandatory limitation; hiding it at the API contradicts
-  the entry.
-
-**Status: APPROVED 2026-07-19 → Option A. Implemented as ED-013.**
+**Not in this milestone:** search machinery of any kind (aliases are *data*, search is
+*machinery*), live ingestion at scale (M6b-2), any endpoint or UI (M6c).
 
 ---
 

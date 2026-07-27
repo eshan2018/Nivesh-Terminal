@@ -56,7 +56,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 3. **The Configuration Source is authoritative for reproducibility.** The prose here explains
    *why*; the config file is the *what* that CI/deploys actually consume.
 4. **No duplication with ADRs.** An ED cites the ADR it realizes; it does not re-decide it.
-5. **IDs are permanent and never reused;** next id is **ED-017**.
+5. **IDs are permanent and never reused;** next id is **ED-018**.
 
 ---
 
@@ -79,6 +79,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | [ED-014](#ed-014--strangler-seam--server-side-proxy-rather-than-cors) | Strangler seam — server-side proxy, not CORS | Accepted | ADR-0020, doc 10/13 |
 | [ED-015](#ed-015--skeleton-orchestration--stdlib-dag-orchestrator-product-deferred) | Skeleton orchestration — stdlib DAG; orchestrator product deferred | Accepted | doc 16, ED-005 |
 | [ED-016](#ed-016--engine-parameters-recorded-in-the-lineage-handle) | Engine parameters recorded in the lineage handle | Accepted | doc 04, doc 08, ADR-0014/0017 |
+| [ED-017](#ed-017--canonical-instrument-identity--mic-exchange-isin-and-aliases) | Canonical instrument identity — MIC exchange, ISIN, aliases | Accepted | doc 04, ADR-0006, doc 06 |
 
 ---
 
@@ -477,6 +478,42 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
   `backend/analytics/portfolio_risk_return.py` (first producer).
 - **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md), [doc 08](../architecture/08-analytics-framework.md), [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines), [ADR-0017](../architecture/18-architecture-decision-records.md#adr-0017--first-class-lineage-with-three-guarantee-tiers).
 
+### ED-017 · Canonical instrument identity — MIC exchange, ISIN and aliases
+- **Status:** Accepted (2026-07-24) — **decided before the code that depends on it**, per rule 3.
+- **Context:** The skeleton's instrument reference carries only `instrument_id`, `name`, `type`
+  and `currency`. M6b-1 seeds ~15–20 real securities, and the milestone's whole purpose is that
+  **the data belongs to the instrument we believe it does** — which cannot be verified for an
+  attribute we never claim. [Doc 04](../architecture/04-canonical-domain-model.md) already
+  specifies Exchange/Venue as a core entity and names ISIN among the cross-reference identifiers,
+  so this implements the intended model rather than extending it.
+- **Decision.** The canonical instrument reference carries:
+  1. **`exchange` as a MIC code** (`XNSE`, `XBOM`). Vendor venue codes (Yahoo's `NSI`) are mapped
+     to MIC **inside the adapter** — vendor vocabulary never rises above L1 ([doc 06](../architecture/06-provider-abstraction-layer.md)/[ADR-0005](../architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters)).
+  2. **`isin`, optional** — the globally unique security identifier, and the join key every
+     Indian demat statement, CDSL/NSDL record and broker export uses. Optional because the
+     current provider returns none for ETFs.
+  3. **`aliases`** — plain strings (`RIL`, `L&T`, `HUL`, former names). India-specific and
+     load-bearing: retail investors say the abbreviation far more often than the legal name.
+  4. **Internal ids stay permanent readable slugs** (`hdfc-bank`) — opaque handles, never shown
+     as a name, never regenerated on rename or merger ([ADR-0006](../architecture/18-architecture-decision-records.md#adr-0006--internal-identifiers-with-vendor-symbology-cross-reference)).
+- **The distinction that prevents a modelling error:** **identifiers** (ISIN, ticker, vendor
+  symbol) are *exact-match cross-references*; **aliases** are *fuzzy human search affordances*.
+  They look alike and are not the same thing. Keeping them separate now is what stops a future
+  search implementation from treating "RIL" as an identifier.
+- **Alternatives Considered:** *defer aliases and ISIN until search exists* — rejected on cost
+  asymmetry: at 15–20 instruments a new field is a one-line edit per row; at 500 it is a data
+  migration. **The seed's *shape* is what is expensive to change, not its values.** *Verify
+  instrument type against the vendor* — rejected: `NIFTYBEES.NS` reports `quoteType: EQUITY`, so
+  the vendor cannot corroborate ETF-vs-equity and a check against it would fail on every ETF for
+  the wrong reason.
+- **Consequences.** Identity becomes verifiable against the vendor for currency, exchange, market
+  and index-vs-not; ETF classification is **our own canonical knowledge, explicitly not
+  vendor-corroborated**, and is recorded as such rather than dressed up as verified. Search can
+  be built later without a migration. **No search machinery is built now** — aliases are *data*,
+  search is *machinery*.
+- **Configuration Source:** `backend/domain/model/instruments.py`; the M6b-1 universe seed.
+- **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md), [doc 06](../architecture/06-provider-abstraction-layer.md), [ADR-0005](../architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters), [ADR-0006](../architecture/18-architecture-decision-records.md#adr-0006--internal-identifiers-with-vendor-symbology-cross-reference).
+
 ---
 
 ## Change log
@@ -492,3 +529,4 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | 2026-07-22 | **ED-014 recorded** during M4b: the strangler seam is a same-origin Next.js proxy, so no CORS middleware is added to the API. `backend/main.py` established as the ED-011 composition root and declared in `architecture_map.py`, with a guardrail test asserting it is the only unlayered module under `backend/`. | The dependency lint skips modules belonging to no layer, so an undeclared entry point would have been silently exempt from every rule. Declaring it turns a blind spot into a checked invariant. Next id: ED-015. |
 | 2026-07-22 | **ED-015 recorded** during M5: the skeleton's DAG is a stdlib task graph; ED-005 (Dagster) stays `Proposed` and no orchestration framework is introduced. | Doc 16 owns the orchestration *model* and defers the *product* to doc 12, banning ad-hoc cron only above the walking skeleton. The model's requirements — declared order, keyed idempotent tasks, runs as lineage events — are met without a framework. The capabilities that will force the product (scheduling, retries, backfill, invalidation cascades) are enumerated in the ED so the trigger is explicit. Next id: ED-016. |
 | 2026-07-22 | **ED-016 recorded** during M6a (Phase 1): engine invocation parameters are pinned in the lineage handle. | The first parameterized engine (`portfolio_risk_return`) exposed that a result recorded its inputs but not its invocation — the same holdings under different weights were indistinguishable in the envelope, so the result was not reproducible from it. Additive, under the ADR-0014 clause and the ED classification already set for ED-012/013. Next id: ED-017. |
+| 2026-07-24 | **ED-017 recorded** ahead of M6b-1: the canonical instrument reference gains MIC exchange, optional ISIN and aliases; internal ids remain permanent readable slugs. | M6b-1 must verify that seeded data *belongs to the instrument we believe it does*, which is impossible for attributes never claimed. Doc 04 already specifies Exchange and names ISIN, so this implements the intended model. Aliases are included now because the seed's shape is cheap to change at 15–20 instruments and expensive at 500. Next id: ED-018. |

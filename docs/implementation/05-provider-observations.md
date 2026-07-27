@@ -128,6 +128,31 @@ site that can change without notice**, not a contracted API. [ADR-0005](../archi
 port/adapter boundary is what makes that survivable — the fragility is contained to one
 package.
 
+### 9 · Identity metadata is available — and cross-field checking is worth doing
+
+`Ticker.info` exposes enough to verify identity rather than mere existence:
+
+```
+RELIANCE.NS   currency INR · exchange NSI / NSE · quoteType EQUITY · isin INE002A01018
+^NSEI         currency INR · exchange NSI / NSE · quoteType INDEX  · isin —
+NIFTYBEES.NS  currency INR · exchange NSI / NSE · quoteType EQUITY · isin "-"
+```
+
+**Two limits worth stating.** `quoteType` distinguishes INDEX from not-INDEX, but **cannot
+distinguish an ETF from an equity** — `NIFTYBEES.NS`, unambiguously an ETF, reports `EQUITY`. And
+**ISIN is absent for ETFs** (a literal `"-"`). Both are the same pattern: ETF support is
+consistently less vendor-corroborated than equity support. Hence [ED-017](01-engineering-decisions.md#ed-017--canonical-instrument-identity--mic-exchange-isin-and-aliases)
+records ETF classification as *our own canonical knowledge*.
+
+**A cross-field discrepancy found while probing, and left open on purpose.** `LT.NS` returns
+`longName: "Larsen & Toubro Limited"` alongside `isin: INE214T01019`. That ISIN is **not obviously
+L&T's** — it may belong to LTIMindtree (formerly L&T Infotech). *This has not been verified from
+an authoritative source and is recorded as a question, not a finding.* Either way it demonstrates
+the point exactly: **name and ISIN can disagree, and neither field alone would reveal it.** This
+is the class of silent identity error M6b-1's verification exists to catch, and the concrete
+reason ISIN is worth carrying — it is the only attribute that is globally unique and
+machine-checkable.
+
 ## What M6b-0 deliberately did **not** change
 
 No behavioural change to `backend/`. No adapter fix for finding 5. No universe seeding.
@@ -139,4 +164,5 @@ guarantee everything else rests on (doc 11).
 
 | Date | Change |
 |------|--------|
+| 2026-07-24 | Finding 9 added while designing M6b-1: identity metadata probed; ISIN available for equities but not ETFs; a name/ISIN discrepancy on `LT.NS` recorded as an open question. |
 | 2026-07-24 | Created in M6b-0. First live execution of the provider path in the project's history; findings 1–8 recorded, a 400-bar real payload captured as a regression fixture, and the fixture's implications pinned as contract tests. |
