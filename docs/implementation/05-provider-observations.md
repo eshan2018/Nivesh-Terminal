@@ -195,6 +195,31 @@ against CDSL/NSDL or exchange listing data**, never adopted into the seed. Had M
 seeded ISINs *from* the provider, this run would have verified the provider against
 itself, attributed a plausible identifier to the wrong company, and passed.
 
+### 12 · ⚠️ `period="365d"` means 365 **bars**, not 365 days
+
+Recorded in M6b-2, and fixed in the adapter. Measured against `RELIANCE.NS`:
+
+```
+period="5d"    →    5 bars over    6 calendar days
+period="30d"   →   30 bars over   41 calendar days
+period="365d"  →  365 bars over  537 calendar days   ← ~18 months
+```
+
+The adapter passed `PriceHistoryRequest.lookback_days` straight through as the vendor's
+`period`, so a canonical request for a year of history silently fetched a year and a
+half. **The canonical contract said "days" and the vendor heard "bars"** — a vendor quirk
+altering the meaning of a request, which is precisely what doc 06 keeps inside L1.
+
+The first live batch was ingested under those semantics before anyone noticed, because
+nothing looks wrong about more data than you asked for. It surfaced only from checking
+whether 365 bars was a plausible number of NSE trading days in a year (it is not; ~250
+is).
+
+**Fix:** `_default_fetch` now sends an explicit `start`/`end` range derived from
+`lookback_days`. A 365-day request returns 250 bars over exactly 365 calendar days. Days
+are also the vendor-neutral unit — 365 *bars* would span different periods for daily and
+weekly intervals, while 365 days does not.
+
 ## What M6b-0 deliberately did **not** change
 
 No behavioural change to `backend/`. No adapter fix for finding 5. No universe seeding.
@@ -206,6 +231,7 @@ guarantee everything else rests on (doc 11).
 
 | Date | Change |
 |------|--------|
+| 2026-07-30 | Finding 12 added during M6b-2: `period="Nd"` returns N *bars*, not N calendar days, so a one-year request was silently fetching ~18 months. The adapter now sends an explicit `start`/`end` date range. |
 | 2026-07-30 | Findings 10 and 11 added during M6b-1's live verification run. ISIN is a `Ticker` property, not an `.info` key — the first verifier read the wrong field and produced a fully green report in which the ISIN check asked nothing. ISIN availability is inconsistent across equities, not merely absent for ETFs. The `LT.NS` name/ISIN discrepancy reproduces stably. |
 | 2026-07-24 | Finding 9 added while designing M6b-1: identity metadata probed; ISIN available for equities but not ETFs; a name/ISIN discrepancy on `LT.NS` recorded as an open question. |
 | 2026-07-24 | Created in M6b-0. First live execution of the provider path in the project's history; findings 1–8 recorded, a 400-bar real payload captured as a regression fixture, and the fixture's implications pinned as contract tests. |
