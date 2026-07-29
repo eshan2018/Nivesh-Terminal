@@ -27,7 +27,7 @@ import pytest
 from backend.analytics.portfolio_risk_return import Holding, portfolio_risk_return
 from backend.domain.market_data.sqlite_repository import SqliteMarketDataRepository
 from backend.domain.model.analytics import ResultStatus
-from backend.domain.model.instruments import reference_for
+from backend.domain.model.instruments import REFERENCE_VERSION, reference_for
 from backend.domain.model.observations import AuthorityTier, PriceObservation, Provenance
 from backend.domain.model.quantities import Currency, Money
 from backend.features.portfolio_returns import build_aligned_return_matrix
@@ -44,7 +44,7 @@ PROVENANCE = Provenance(
     raw_object_key="raw/v1/yfinance/price-history/2024-01/portfolio/golden.json",
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
-    reference_version="skeleton-reference/v1",
+    reference_version=REFERENCE_VERSION,
 )
 
 
@@ -88,22 +88,25 @@ def _observation(instrument: InstrumentId, day: int, close: float) -> PriceObser
     )
 
 
-def _actual(repository: SqliteMarketDataRepository) -> dict[str, object]:
+def _result(repository: SqliteMarketDataRepository):
     holdings = [Holding(RELIANCE, 0.6), Holding(TCS, 0.4)]
     matrix = build_aligned_return_matrix(repository, [RELIANCE, TCS], as_of=AS_OF)
-    result = portfolio_risk_return(
+    return portfolio_risk_return(
         matrix,
         holdings,
         [reference_for(RELIANCE), reference_for(TCS)],
         risk_free_rate=RISK_FREE_RATE,
         computed_at=COMPUTED_AT,
     )
+
+
+def _actual(repository: SqliteMarketDataRepository) -> dict[str, object]:
+    result = _result(repository)
     assert result.status is ResultStatus.AVAILABLE
     assert result.value is not None
     return {
         "metric_id": result.metric_id,
         "formula_version": result.formula_version,
-        "reference_version": result.reference_version,
         "status": str(result.status),
         # repr, not round(): the golden asserts the exact double, so a change in the
         # order of operations is caught rather than rounded away.
@@ -121,3 +124,10 @@ def test_the_engine_matches_its_golden_master(
     repository: SqliteMarketDataRepository,
 ) -> None:
     assert _actual(repository) == json.loads(GOLDEN.read_text())
+
+
+def test_the_result_pins_the_current_reference_state(
+    repository: SqliteMarketDataRepository,
+) -> None:
+    """Lineage, not methodology — see the note in `test_golden_master.py`."""
+    assert _result(repository).reference_version == REFERENCE_VERSION

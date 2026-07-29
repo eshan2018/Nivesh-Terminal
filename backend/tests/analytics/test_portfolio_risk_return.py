@@ -269,7 +269,7 @@ def test_an_etf_may_be_held_alongside_an_equity() -> None:
     from backend.features.portfolio_returns import supported_for_portfolio
 
     etf = InstrumentReference(
-        InstrumentId("niftybees"), "NiftyBees", InstrumentType.ETF, Currency.INR
+        InstrumentId("niftybees"), "NiftyBees", InstrumentType.ETF, Currency.INR, "XNSE"
     )
     assert supported_for_portfolio(etf)
 

@@ -56,7 +56,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 3. **The Configuration Source is authoritative for reproducibility.** The prose here explains
    *why*; the config file is the *what* that CI/deploys actually consume.
 4. **No duplication with ADRs.** An ED cites the ADR it realizes; it does not re-decide it.
-5. **IDs are permanent and never reused;** next id is **ED-018**.
+5. **IDs are permanent and never reused;** next id is **ED-019**.
 
 ---
 
@@ -80,6 +80,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | [ED-015](#ed-015--skeleton-orchestration--stdlib-dag-orchestrator-product-deferred) | Skeleton orchestration — stdlib DAG; orchestrator product deferred | Accepted | doc 16, ED-005 |
 | [ED-016](#ed-016--engine-parameters-recorded-in-the-lineage-handle) | Engine parameters recorded in the lineage handle | Accepted | doc 04, doc 08, ADR-0014/0017 |
 | [ED-017](#ed-017--canonical-instrument-identity--mic-exchange-isin-and-aliases) | Canonical instrument identity — MIC exchange, ISIN, aliases | Accepted | doc 04, ADR-0006, doc 06 |
+| [ED-018](#ed-018--reference-data-as-a-committed-seed-file) | Reference data as a committed seed file | Accepted | doc 04, doc 07, doc 15 |
 
 ---
 
@@ -514,6 +515,52 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 - **Configuration Source:** `backend/domain/model/instruments.py`; the M6b-1 universe seed.
 - **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md), [doc 06](../architecture/06-provider-abstraction-layer.md), [ADR-0005](../architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters), [ADR-0006](../architecture/18-architecture-decision-records.md#adr-0006--internal-identifiers-with-vendor-symbology-cross-reference).
 
+### ED-018 · Reference data as a committed seed file
+- **Status:** Accepted (2026-07-30) — recorded with the M6b-1 code it governs.
+- **Context:** The skeleton's instrument registry and vendor symbology were Python dict
+  literals — defensible at five instruments, wrong at twenty. [Doc 04](../architecture/04-canonical-domain-model.md)
+  states universes are "data, editable without code", and [doc 15](../architecture/15-development-roadmap.md)'s
+  fourth sequencing principle is blunter: *"widening the universe is a data-ops task, not an
+  architecture change. If adding instruments requires code changes above the adapter, the
+  architecture failed."* [Doc 07](../architecture/07-database-design.md) assigns reference/master
+  data to the Postgres store — but that is the *deployed* home, and standing up reference tables
+  to hold twenty rows repeats exactly what [ED-003](#ed-003--postgresql-deployment-realization)
+  and [ED-004](#ed-004--object-storage-realization) declined to do prematurely.
+- **Decision:** Reference state is a **committed JSON seed loaded once at import**:
+  `backend/domain/model/universe.json` (canonical attributes) and
+  `backend/providers/yfinance/symbology.json` (that adapter's vendor symbols). Adding an
+  instrument is a data edit. `reference_version` lives **inside** the canonical seed rather than
+  beside it in code, so the version and the state it pins cannot drift apart. No reference-data
+  tables, no loader service, no migration.
+- **Why two files and not one.** A single file carrying a vendor-symbol column would put vendor
+  vocabulary in the canonical layer, and the layer map forbids L1 from importing the domain in
+  any case. The shared cross-reference table doc 04 describes earns its keep when a *second*
+  provider exists to share it (doc 06 defers the router to Phase 5); until then each adapter owns
+  its column and a hermetic test asserts the two files agree —
+  `backend/tests/providers/test_symbology_seed.py`. Note the asymmetry it encodes: *no orphan
+  mappings* is permanent, while *full coverage* is a property of this universe with one provider,
+  which a capability-declaring second adapter would legitimately relax.
+- **Alternatives Considered:** *Keep Python literals* — makes doc 15's principle 4 false in
+  practice and puts a data edit through code review as code. *Reference tables in the domain store
+  now* — the doc 07 endpoint, but it buys nothing at twenty rows and would have to be written
+  before the effective-dating that is its actual purpose. *One combined seed* — see above.
+- **Consequences:** Widening the universe touches data only. **A consequence worth naming: the
+  goldens.** `reference_version` is pinned into every `AnalyticResult`, so freezing it inside a
+  golden master would make every seed edit re-bless two goldens — friction that would quietly
+  restore the property this ED removes. The goldens therefore assert `reference_version` against
+  the live constant and pin everything else exactly; a golden guards *methodology* drift
+  ([doc 11](../architecture/11-testing-strategy.md) B10), and which reference state a run used is
+  lineage, not methodology. Both engines' values were byte-identical across the v1→v2 bump, which
+  is the evidence that nothing methodological moved. Phase 1's effective-dated reference store
+  supersedes the mechanism, not the model — the `reference_version` concept survives unchanged,
+  which was the expensive part to retrofit.
+- **Configuration Source:** `backend/domain/model/universe.json`,
+  `backend/domain/model/instruments.py`, `backend/providers/yfinance/symbology.json`,
+  `backend/providers/yfinance/symbology.py`.
+- **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md),
+  [doc 07](../architecture/07-database-design.md), [doc 15](../architecture/15-development-roadmap.md),
+  [doc 06](../architecture/06-provider-abstraction-layer.md); realizes [ED-017](#ed-017--canonical-instrument-identity--mic-exchange-isin-and-aliases).
+
 ---
 
 ## Change log
@@ -529,4 +576,5 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | 2026-07-22 | **ED-014 recorded** during M4b: the strangler seam is a same-origin Next.js proxy, so no CORS middleware is added to the API. `backend/main.py` established as the ED-011 composition root and declared in `architecture_map.py`, with a guardrail test asserting it is the only unlayered module under `backend/`. | The dependency lint skips modules belonging to no layer, so an undeclared entry point would have been silently exempt from every rule. Declaring it turns a blind spot into a checked invariant. Next id: ED-015. |
 | 2026-07-22 | **ED-015 recorded** during M5: the skeleton's DAG is a stdlib task graph; ED-005 (Dagster) stays `Proposed` and no orchestration framework is introduced. | Doc 16 owns the orchestration *model* and defers the *product* to doc 12, banning ad-hoc cron only above the walking skeleton. The model's requirements — declared order, keyed idempotent tasks, runs as lineage events — are met without a framework. The capabilities that will force the product (scheduling, retries, backfill, invalidation cascades) are enumerated in the ED so the trigger is explicit. Next id: ED-016. |
 | 2026-07-22 | **ED-016 recorded** during M6a (Phase 1): engine invocation parameters are pinned in the lineage handle. | The first parameterized engine (`portfolio_risk_return`) exposed that a result recorded its inputs but not its invocation — the same holdings under different weights were indistinguishable in the envelope, so the result was not reproducible from it. Additive, under the ADR-0014 clause and the ED classification already set for ED-012/013. Next id: ED-017. |
+| 2026-07-30 | **ED-018 recorded** during M6b-1: reference state becomes a committed JSON seed loaded at import, replacing Python dict literals; `reference_version` moves into the seed; the goldens stop freezing it. | Doc 15's sequencing principle 4 requires that widening the universe never be a code change, and doc 04 calls universes "data, editable without code" — both were false while the registry was a literal. Doc 07's reference tables remain the deployed home; a seed file is the ED-003/ED-004 pattern applied again (honour the model now, stand up the infrastructure where it is first needed). Next id: ED-019. |
 | 2026-07-24 | **ED-017 recorded** ahead of M6b-1: the canonical instrument reference gains MIC exchange, optional ISIN and aliases; internal ids remain permanent readable slugs. | M6b-1 must verify that seeded data *belongs to the instrument we believe it does*, which is impossible for attributes never claimed. Doc 04 already specifies Exchange and names ISIN, so this implements the intended model. Aliases are included now because the seed's shape is cheap to change at 15–20 instruments and expensive at 500. Next id: ED-018. |

@@ -11,7 +11,6 @@
   "raw_object_keys": [
     "raw/v1/yfinance/price-history/2025-01/reliance/golden.json"
   ],
-  "reference_version": "skeleton-reference/v1",
   "status": "AVAILABLE",
   "value": "0.00545785324439052"
 }

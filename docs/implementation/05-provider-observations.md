@@ -153,6 +153,48 @@ is the class of silent identity error M6b-1's verification exists to catch, and 
 reason ISIN is worth carrying — it is the only attribute that is globally unique and
 machine-checkable.
 
+### 10 · ⚠️ ISIN is **not** in `Ticker.info` — and a green report can still mean nothing
+
+Recorded in M6b-1. `isin` is a separate `Ticker` **property**, not a key in the `.info`
+dict:
+
+```
+Ticker("RELIANCE.NS").info.get("isin")  →  None
+Ticker("RELIANCE.NS").isin              →  "INE002A01018"
+```
+
+The first version of `tools/verify_universe.py` read `info["isin"]`. Every instrument
+therefore reported "vendor offers nothing", every ISIN check resolved to
+`uncorroborated`, and **all twenty rows still came back `OK`** — a completely clean
+verification report in which one of the checks had silently asked no question at all.
+
+**This is the finding, not the typo.** A verification suite fails safe only if you can
+tell the difference between "the vendor agrees" and "the vendor was never asked", and a
+row-level verdict cannot show you that. It was caught by reading the detail column and
+noticing that a field finding 9 had *observed working* was now universally empty. Two
+consequences were adopted: the report prints every check's detail rather than a verdict
+alone, and `uncorroborated` is displayed as a distinct outcome rather than folded into a
+pass.
+
+Availability also turns out to be **inconsistent across equities**, which refines finding
+9's "absent for ETFs": of 20 seeded instruments, 9 returned a check-digit-valid ISIN and
+11 returned the literal `"-"` — including TCS, Infosys, Axis Bank, Bharti Airtel and both
+Bajaj entities. There is no evident pattern separating them.
+
+### 11 · The `LT.NS` ISIN discrepancy reproduces
+
+Finding 9 recorded, as an open question, that `LT.NS` returns `longName: "Larsen & Toubro
+Limited"` with `isin: INE214T01019` — an identifier that may belong to LTIMindtree
+rather than L&T. **The M6b-1 run reproduces it exactly**, so it is a stable vendor
+behaviour rather than a transient glitch, and at least one further candidate in the same
+run does not match the value we believe that company carries.
+
+Neither value is asserted here, because we hold no authoritative source for either — and
+that is the point. The vendor's ISINs are recorded as **candidates awaiting confirmation
+against CDSL/NSDL or exchange listing data**, never adopted into the seed. Had M6b-1
+seeded ISINs *from* the provider, this run would have verified the provider against
+itself, attributed a plausible identifier to the wrong company, and passed.
+
 ## What M6b-0 deliberately did **not** change
 
 No behavioural change to `backend/`. No adapter fix for finding 5. No universe seeding.
@@ -164,5 +206,6 @@ guarantee everything else rests on (doc 11).
 
 | Date | Change |
 |------|--------|
+| 2026-07-30 | Findings 10 and 11 added during M6b-1's live verification run. ISIN is a `Ticker` property, not an `.info` key — the first verifier read the wrong field and produced a fully green report in which the ISIN check asked nothing. ISIN availability is inconsistent across equities, not merely absent for ETFs. The `LT.NS` name/ISIN discrepancy reproduces stably. |
 | 2026-07-24 | Finding 9 added while designing M6b-1: identity metadata probed; ISIN available for equities but not ETFs; a name/ISIN discrepancy on `LT.NS` recorded as an open question. |
 | 2026-07-24 | Created in M6b-0. First live execution of the provider path in the project's history; findings 1–8 recorded, a 400-bar real payload captured as a regression fixture, and the fixture's implications pinned as contract tests. |

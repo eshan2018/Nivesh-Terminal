@@ -14,7 +14,7 @@ from backend.providers.ports.errors import MalformedPayload, NotAvailable
 from backend.providers.ports.price_history import PriceHistoryPort, PriceHistoryRequest
 from backend.providers.yfinance import adapter as yf
 from backend.providers.yfinance.adapter import RawFetch, YFinanceAdapter, validate_columns
-from backend.providers.yfinance.symbology import SKELETON_INSTRUMENTS, to_vendor_symbol
+from backend.providers.yfinance.symbology import SEEDED_INSTRUMENTS, to_vendor_symbol
 
 # A recorded, well-formed two-bar payload (vendor column names preserved).
 _GOOD_ROWS = (
@@ -39,7 +39,7 @@ def test_adapter_satisfies_port() -> None:
     assert isinstance(YFinanceAdapter(fetcher=_good_fetcher), PriceHistoryPort)
 
 
-@pytest.mark.parametrize("instrument", SKELETON_INSTRUMENTS, ids=lambda i: i.value)
+@pytest.mark.parametrize("instrument", SEEDED_INSTRUMENTS, ids=lambda i: i.value)
 def test_fetch_returns_neutral_response(instrument: InstrumentId) -> None:
     adapter = YFinanceAdapter(fetcher=_good_fetcher)
     response = adapter.fetch(PriceHistoryRequest(instrument, lookback_days=365))
@@ -71,15 +71,17 @@ def test_validate_columns_directly() -> None:
         validate_columns(("Open", "High", "Low", "Volume"))
 
 
-def test_symbology_covers_five_including_index_and_usd() -> None:
-    symbols = {i.value: to_vendor_symbol(i) for i in SKELETON_INSTRUMENTS}
-    assert symbols == {
-        "reliance": "RELIANCE.NS",
-        "tcs": "TCS.NS",
-        "infosys": "INFY.NS",
-        "nifty-50": "^NSEI",  # an index — L4 must not FX-convert it
-        "apple": "AAPL",  # a USD equity — L4 exercises the FX path
-    }
+def test_symbology_resolves_the_shapes_that_stress_identity() -> None:
+    symbols = {i.value: to_vendor_symbol(i) for i in SEEDED_INSTRUMENTS}
+    # Not an exhaustive list — the seed is data and grows without touching this file
+    # (doc 15, principle 4). These four are pinned because each is a distinct shape the
+    # adapter must keep straight: an NSE listing, an index quote, a foreign listing with
+    # no suffix, and the merged entity whose name still trips people up.
+    assert symbols["reliance"] == "RELIANCE.NS"
+    assert symbols["nifty-50"] == "^NSEI"  # an index — L4 must not FX-convert it
+    assert symbols["apple"] == "AAPL"  # a USD equity, no exchange suffix
+    assert symbols["hdfc-bank"] == "HDFCBANK.NS"
+    # Seed-wide coverage and drift are asserted in test_symbology_seed.py.
 
 
 def test_request_validates_inputs() -> None:

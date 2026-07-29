@@ -1,0 +1,212 @@
+{
+  "_comment": [
+    "The canonical instrument reference seed (M6b-1, ED-017).",
+    "",
+    "DATA, NOT CODE. Adding an instrument is an edit to this file — doc 15 sequencing",
+    "principle 4: 'widening the universe is a data-ops task, not an architecture change.'",
+    "",
+    "Every value here is OUR claim about an instrument's identity, authored from",
+    "authoritative public reference. tools/verify_universe.py checks those claims against",
+    "the vendor; it never generates them. A verification whose expected values came from",
+    "the thing being verified would always pass and would verify nothing.",
+    "",
+    "`isin` is null where we hold no authoritative source for it. The vendor reports one",
+    "for most equities, but adopting the vendor's value would make the check circular —",
+    "and yfinance already returns a name/ISIN pair for LT.NS that may not agree",
+    "(doc 05 finding 9). Null means 'not yet claimed', never 'has none'. The verification",
+    "report lists the vendor's value as a candidate awaiting confirmation, which mirrors",
+    "doc 04's authoritative/candidate tiering.",
+    "",
+    "Deliberate omissions: Tata Motors is absent because its 2025 demerger leaves the",
+    "identity behind TATAMOTORS.NS unverifiable from here — seeding an entity mid",
+    "corporate action is the exact failure this milestone exists to prevent.",
+    "",
+    "`reference_version` lives beside the data it versions, so changing the universe is",
+    "one edit rather than two. Bumping it is not cosmetic: it is pinned into every",
+    "AnalyticResult, and observations ingested under an older version raise the",
+    "reference-drift flag at L6 until re-ingested."
+  ],
+  "reference_version": "instrument-reference/v2",
+  "instruments": [
+    {
+      "instrument_id": "reliance",
+      "name": "Reliance Industries Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["RIL", "Reliance"]
+    },
+    {
+      "instrument_id": "tcs",
+      "name": "Tata Consultancy Services Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["TCS"]
+    },
+    {
+      "instrument_id": "infosys",
+      "name": "Infosys Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Infy"]
+    },
+    {
+      "instrument_id": "hdfc-bank",
+      "name": "HDFC Bank Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["HDFC Bank"]
+    },
+    {
+      "instrument_id": "icici-bank",
+      "name": "ICICI Bank Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["ICICI"]
+    },
+    {
+      "instrument_id": "state-bank-of-india",
+      "name": "State Bank of India",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["SBI"]
+    },
+    {
+      "instrument_id": "kotak-mahindra-bank",
+      "name": "Kotak Mahindra Bank Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Kotak", "Kotak Bank"]
+    },
+    {
+      "instrument_id": "axis-bank",
+      "name": "Axis Bank Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Axis"]
+    },
+    {
+      "instrument_id": "itc",
+      "name": "ITC Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["ITC"]
+    },
+    {
+      "instrument_id": "hindustan-unilever",
+      "name": "Hindustan Unilever Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["HUL"]
+    },
+    {
+      "instrument_id": "bharti-airtel",
+      "name": "Bharti Airtel Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Airtel"]
+    },
+    {
+      "instrument_id": "larsen-toubro",
+      "name": "Larsen & Toubro Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["L&T", "LnT"]
+    },
+    {
+      "instrument_id": "bajaj-finance",
+      "name": "Bajaj Finance Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Bajaj Finance"]
+    },
+    {
+      "instrument_id": "bajaj-finserv",
+      "name": "Bajaj Finserv Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Bajaj Finserv"]
+    },
+    {
+      "instrument_id": "maruti-suzuki",
+      "name": "Maruti Suzuki India Limited",
+      "type": "EQUITY",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Maruti"]
+    },
+    {
+      "instrument_id": "nippon-nifty-bees",
+      "name": "Nippon India ETF Nifty 50 BeES",
+      "type": "ETF",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Nifty BeES"]
+    },
+    {
+      "instrument_id": "nippon-bank-bees",
+      "name": "Nippon India ETF Nifty Bank BeES",
+      "type": "ETF",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Bank BeES"]
+    },
+    {
+      "instrument_id": "nippon-gold-bees",
+      "name": "Nippon India ETF Gold BeES",
+      "type": "ETF",
+      "currency": "INR",
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Gold BeES"]
+    },
+    {
+      "instrument_id": "nifty-50",
+      "name": "Nifty 50",
+      "type": "INDEX",
+      "currency": null,
+      "exchange": "XNSE",
+      "isin": null,
+      "aliases": ["Nifty"]
+    },
+    {
+      "instrument_id": "apple",
+      "name": "Apple Inc.",
+      "type": "EQUITY",
+      "currency": "USD",
+      "exchange": "XNAS",
+      "isin": null,
+      "aliases": ["Apple"]
+    }
+  ]
+}
