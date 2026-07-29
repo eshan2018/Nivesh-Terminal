@@ -3,7 +3,7 @@
 **Hand-off brief for any new session. Read this first, then the linked docs.**
 **This is the single authoritative hand-off document.** There is no separate product-context
 file; product intent lives in §2 below.
-Last updated: 2026-07-30 · `main` @ M6b-1 · reference state: tag `v0.3-walking-skeleton-complete`
+Last updated: 2026-07-30 · `main` @ M6b-2 · reference state: tag `v0.3-walking-skeleton-complete`
 
 ---
 
@@ -29,7 +29,7 @@ migration to reverse. Next id: **ADR-0021, still unused.** Nine milestones were 
 without spending one; that is evidence the architecture was sufficient, and the bar for the
 first one should stay high.
 
-**Implementation choices remain Engineering Decisions** (next id: **ED-019**) and do not
+**Implementation choices remain Engineering Decisions** (next id: **ED-020**) and do not
 need an ADR. The distinction and its litmus are in
 [doc 01](implementation/01-engineering-decisions.md); when in doubt, classify before writing
 code, not after.
@@ -45,14 +45,14 @@ code, not after.
 ```
 Phase                  **Phase 1 IN PROGRESS** — Portfolio Intelligence
                        (Phase 0.5 remains COMPLETE and FROZEN — see §0)
-Last milestone         M6b-1 — 20-instrument universe seeded; identity verified live
-Next milestone         M6b-2 — live ingestion at scale (not started)
+Last milestone         M6b-2 — first live ingestion at scale; real numbers end to end
+Next milestone         M6c — POST /v1/portfolio/analysis + the portfolio pane
 Current branch         main
 Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
                        v0.2-compute-slice           (L6–L7, compute half)
                        v0.3-walking-skeleton-complete (Phase 0.5 closed)
-Tests                  339 passing
+Tests                  359 passing
 Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
                        at M4a; L1–L7 remain stdlib-only)
 CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
@@ -86,7 +86,10 @@ Phase 1 · Portfolio Intelligence (stateless — no accounts, no persistence)
 ✓ M6b-1 Universe     20 securities seeded as DATA (ED-018) with MIC/ISIN/aliases (ED-017);
                      identity verified against the live provider — report in
                      docs/implementation/06-universe-verification.md
-□ M6b-2 Ingestion    live ingestion at scale; real numbers visible in the live pane
+✓ M6b-2 Ingestion    20 instruments ingested live (4,976 observations, 6.7s); batch
+                     execution outcomes (ED-019); evidence in
+                     docs/implementation/07-ingestion-at-scale.md.
+                     Two live-only defects found and fixed — see §10 item 6
 □ M6c  Serve        POST /v1/portfolio/analysis + the portfolio pane
 □ M7   Diversification  correlation matrix + efficient frontier (second investor question)
 ```
@@ -353,7 +356,7 @@ How decisions get made here, recorded because it is easy to lose and expensive t
 4. **Do not make architectural assumptions.** When a decision is genuinely the user's, present
    2–3 options with trade-offs plus a recommendation, then wait.
 5. **Architectural change → ADR** (`docs/architecture/18-…`; next id **ADR-0021**, unused).
-   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-019**).
+   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-020**).
    *Threshold:* does it change architecture, boundaries, public contracts, maintainability or
    deployment model, or require a **migration** if reversed? If not, it is an ED.
 
@@ -427,8 +430,9 @@ docs/
     04-recompute-rto.md            the recompute procedure + the measured RTO number
     05-provider-observations.md    how the live provider actually behaves (M6b-0/M6b-1)
     06-universe-verification.md    identity evidence — regenerate, don't hand-edit
+    07-ingestion-at-scale.md       the first real ingestion run (M6b-2)
 
-backend/                      the layered app (339 tests)
+backend/                      the layered app (359 tests)
   platform/                   kernel: InstrumentId
   providers/ports/            PriceHistoryPort, error taxonomy
   providers/yfinance/         the ONLY place vendor code may appear; symbology.json
@@ -440,7 +444,7 @@ backend/                      the layered app (339 tests)
   features/                   L6: returns.py — close_price_series, the C3 seam
   analytics/                  L7: one_year_return.py → AnalyticResult
   api/                        L9: app, DTOs, OpenAPI export
-  orchestration/              the forward-only ingest DAG + recompute
+  orchestration/              the forward-only ingest DAG + recompute + batch outcomes
 
 tools/ci/                     the three architecture guardrails + tests
 tools/skeleton_status.py      live status board (`make skeleton`)
@@ -462,6 +466,7 @@ make check       # guardrails + ruff + pytest  ← the gate, before every commit
 make skeleton    # live status board + real end-to-end trace
 make recompute   # rebuild every derived value from raw and time it (doc 00 §B6)
 make verify-universe  # LIVE: re-check seeded identity against the provider
+make ingest      # LIVE: ingest the seeded universe (non-zero exit on trouble)
 make serve       # run the API locally (needs the `serve` extra)
 ```
 
@@ -503,6 +508,16 @@ make serve       # run the API locally (needs the `serve` extra)
 4. **One interpretation open to a second opinion** — L4 preserves native currency and does not
    FX-convert (recorded in the plan's decision log). Changing it is a plan change, not an
    architecture change.
+6. **Two defects existed for months and were only findable live (M6b-2).** The window
+   parameter meant bars not days, and the fail-closed gate could not see NaN — a
+   still-open session's all-NaN bar passed every comparison-based check and produced an
+   `AVAILABLE` metric valued `NaN`. Both are fixed and pinned by tests
+   ([doc 05](implementation/05-provider-observations.md) findings 12–13).
+   *What to carry forward:* hermetic tests prove behaviour against what we imagined the
+   vendor sends. Neither defect was a coverage gap — the gate had tests and they passed.
+   A periodic deliberate live run is the only thing that finds this class, which is why
+   `make ingest` and `make verify-universe` exist as standing tools rather than one-off
+   scripts.
 5. **No instrument carries an ISIN yet — deliberate, and the founder's call to close.**
    All 20 seeded rows have `isin: null`. The vendor offers a check-digit-valid ISIN for 9 of
    them, but adopting a value *from* the system being verified would make the check circular,

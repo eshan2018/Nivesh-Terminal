@@ -220,6 +220,39 @@ is).
 are also the vendor-neutral unit — 365 *bars* would span different periods for daily and
 weekly intervals, while 365 days does not.
 
+### 13 · ⚠️⚠️ The current session's bar is **NaN**, and comparison-based validation cannot see it
+
+The most serious defect found so far, surfaced by the first real batch.
+
+The vendor returns a bar for the current, still-open session with `NaN` for open, high,
+low and close. Every check in the L3 gate was a comparison — `value <= 0`, `high < low`,
+`low > min(open, close)` — and **every comparison against NaN evaluates to False**. So a
+NaN bar passed a fail-closed gate without tripping a single check, was stored as
+`Decimal("NaN")` (a perfectly valid `Decimal`), crossed the C3 float seam intact, and
+produced:
+
+```
+one_year_return(reliance)  →  status AVAILABLE, value NaN
+```
+
+An `AVAILABLE`, fully traced, lineage-complete metric whose value is not a number. **That
+is the worst result this platform can emit** — worse than an error, because it is
+number-shaped, survives every type in the stack, and would render to an investor as
+though it were a measurement. It defeated the fail-closed guarantee (principle 13) not by
+bypassing it but by being invisible to it.
+
+**Fix, at two levels.** The gate now checks finiteness explicitly and *before* the
+ordering checks — so the bar quarantines with the true reason ("close is not a finite
+number") rather than a misleading one about OHLC ordering. Beneath it, `Money`,
+`IndexLevel`, `Ratio` and `to_decimal` refuse non-finite values at construction, so any
+path that ever bypasses the gate fails loudly instead of writing a non-number into the
+canonical model. The first clean batch quarantined 18 such bars — retained with reasons,
+never discarded — and wrote 4,976 finite observations.
+
+**The general lesson, worth more than the bug:** a validation suite built from
+comparisons has a blind spot exactly the size of NaN, and no amount of adding more
+comparisons closes it.
+
 ## What M6b-0 deliberately did **not** change
 
 No behavioural change to `backend/`. No adapter fix for finding 5. No universe seeding.
@@ -231,6 +264,7 @@ guarantee everything else rests on (doc 11).
 
 | Date | Change |
 |------|--------|
+| 2026-07-30 | Finding 13 added during M6b-2: the vendor's current-session bar is all-NaN, and every comparison against NaN is False, so it passed the fail-closed gate untouched and produced an `AVAILABLE` metric valued NaN. Finiteness is now checked explicitly at L3, with the quantity types refusing non-finite values as a backstop. |
 | 2026-07-30 | Finding 12 added during M6b-2: `period="Nd"` returns N *bars*, not N calendar days, so a one-year request was silently fetching ~18 months. The adapter now sends an explicit `start`/`end` date range. |
 | 2026-07-30 | Findings 10 and 11 added during M6b-1's live verification run. ISIN is a `Ticker` property, not an `.info` key — the first verifier read the wrong field and produced a fully green report in which the ISIN check asked nothing. ISIN availability is inconsistent across equities, not merely absent for ETFs. The `LT.NS` name/ISIN discrepancy reproduces stably. |
 | 2026-07-24 | Finding 9 added while designing M6b-1: identity metadata probed; ISIN available for equities but not ETFs; a name/ISIN discrepancy on `LT.NS` recorded as an open question. |

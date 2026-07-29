@@ -14,7 +14,13 @@ from backend.domain.model.instruments import (
     known_instruments,
     reference_for,
 )
-from backend.domain.model.quantities import Currency, IndexLevel, Money, to_decimal
+from backend.domain.model.quantities import (
+    Currency,
+    IndexLevel,
+    Money,
+    Ratio,
+    to_decimal,
+)
 from backend.platform.identifiers import InstrumentId
 
 # ── Money is never a float ────────────────────────────────────────────────────
@@ -108,3 +114,39 @@ def test_reference_version_is_pinned() -> None:
 def test_unknown_instrument_raises() -> None:
     with pytest.raises(UnknownInstrument):
         reference_for(InstrumentId("not-a-thing"))
+
+
+# ── A quantity is always a number (M6b-2 backstop) ────────────────────────────
+
+def test_money_and_index_levels_must_be_finite() -> None:
+    """`Decimal("NaN")` is a valid Decimal — which is why the type check was not enough.
+
+    The L3 gate is what *handles* a non-finite vendor value (it quarantines the bar with
+    a reason). This is the backstop beneath it: any path that bypasses the gate fails
+    loudly rather than writing a number-shaped non-number into the canonical model.
+    """
+    for bad in ("NaN", "Infinity", "-Infinity"):
+        with pytest.raises(ValueError, match="finite"):
+            Money(Decimal(bad), Currency.INR)
+        with pytest.raises(ValueError, match="finite"):
+            IndexLevel(Decimal(bad))
+    assert Money(Decimal("1.5"), Currency.INR).amount == Decimal("1.5")
+
+
+def test_to_decimal_refuses_non_finite_inputs() -> None:
+    for bad in (float("nan"), float("inf"), float("-inf"), "NaN"):
+        with pytest.raises(ValueError, match="finite"):
+            to_decimal(bad)
+
+
+def test_a_ratio_is_never_nan() -> None:
+    """An incomputable result is `Unavailable` with a reason, never a NaN value.
+
+    A NaN ratio would travel as an AVAILABLE metric, fully traced, and render to an
+    investor as though it were a measurement.
+    """
+    with pytest.raises(ValueError, match="finite"):
+        Ratio(float("nan"))
+    with pytest.raises(ValueError, match="finite"):
+        Ratio(float("inf"))
+    assert Ratio(0.05).value == 0.05

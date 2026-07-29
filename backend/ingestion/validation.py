@@ -22,6 +22,7 @@ the architecture defers to Phase 5.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -130,17 +131,38 @@ def _check_required_fields(bar: RawBar, reasons: list[str]) -> None:
 
 
 def _check_ranges(bar: RawBar, reasons: list[str]) -> None:
+    """Range and finiteness checks.
+
+    **Finiteness is checked first, and explicitly, because comparison cannot do it.**
+    Every comparison against NaN is False — `nan <= 0`, `nan < low`, `nan > high` — so a
+    NaN price passes a gate built from comparisons without tripping a single one. That is
+    not a hypothetical: the vendor returns a NaN-valued bar for the current, still-open
+    session, and before this check those bars reached the canonical store, flowed through
+    the C3 float seam and produced an `AVAILABLE` metric whose value was NaN (M6b-2).
+
+    A number-shaped non-number is the worst possible result for this platform: it is
+    fully traced, passes every downstream type, and renders to an investor as if it were
+    a measurement. Fail-closed means it quarantines with a reason (principle 13).
+    """
+    for field in ("open", "high", "low", "close", "volume"):
+        value = getattr(bar, field)
+        if value is not None and not math.isfinite(value):
+            reasons.append(f"{field} is not a finite number, got {value}")
+
     for field in ("open", "high", "low", "close"):
         value = getattr(bar, field)
-        if value is not None and value <= 0:
+        if value is not None and math.isfinite(value) and value <= 0:
             reasons.append(f"{field} must be > 0, got {value}")
-    if bar.volume is not None and bar.volume < 0:
+    if bar.volume is not None and math.isfinite(bar.volume) and bar.volume < 0:
         reasons.append(f"volume must be non-negative, got {bar.volume}")
 
 
 def _check_ohlc_consistency(bar: RawBar, reasons: list[str]) -> None:
-    if None in (bar.open, bar.high, bar.low, bar.close):
+    values = (bar.open, bar.high, bar.low, bar.close)
+    if None in values:
         return  # already reported as missing
+    if not all(math.isfinite(value) for value in values):
+        return  # already reported as non-finite; ordering is meaningless against NaN
     assert bar.high is not None and bar.low is not None
     assert bar.open is not None and bar.close is not None
     if bar.high < bar.low:

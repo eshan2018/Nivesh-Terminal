@@ -115,3 +115,46 @@ def test_unexplained_jump_is_flagged_not_dropped() -> None:
 def test_index_instrument_validates_without_currency() -> None:
     outcome = validate_price_history(_response((_bar(1),), instrument="nifty-50"), NIFTY)
     assert len(outcome.accepted) == 1
+
+
+# ── Non-finite values (M6b-2) ─────────────────────────────────────────────────
+
+def test_a_nan_price_is_quarantined_not_accepted() -> None:
+    """The defect live ingestion surfaced, pinned so it cannot return.
+
+    Every comparison against NaN is False, so a gate built from `<=` and `<` waves a NaN
+    price through without tripping a single check. Before this, NaN closes reached the
+    canonical store and produced an `AVAILABLE` metric whose value was NaN — a fully
+    traced non-number, which is the worst result this platform can emit.
+    """
+    outcome = validate_price_history(
+        _response((_bar(29, close=float("nan")),)), APPLE
+    )
+
+    assert outcome.accepted == ()
+    assert len(outcome.quarantined) == 1
+    assert any("finite" in reason for reason in outcome.quarantined[0].reasons)
+
+
+def test_infinite_and_nan_fields_are_all_refused() -> None:
+    for field in ("open", "high", "low", "close", "volume"):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            outcome = validate_price_history(
+                _response((_bar(29, **{field: value}),)), APPLE
+            )
+            assert outcome.accepted == (), f"{field}={value} was accepted"
+
+
+def test_a_non_finite_bar_reports_finiteness_not_a_misleading_ordering_error() -> None:
+    """The reason an investor-facing quarantine record carries must be the true one.
+
+    `high < low` is False for NaN, so an OHLC-consistency complaint would be both wrong
+    and confusing. The bar is refused for what is actually wrong with it.
+    """
+    outcome = validate_price_history(
+        _response((_bar(29, high=float("nan")),)), APPLE
+    )
+
+    reasons = outcome.quarantined[0].reasons
+    assert any("finite" in reason for reason in reasons)
+    assert not any("below" in reason or "above" in reason for reason in reasons)
