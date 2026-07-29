@@ -30,7 +30,9 @@ untestable. ASGI servers support this directly (`--factory`).
 from __future__ import annotations
 
 import os
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import FastAPI
 
@@ -39,13 +41,26 @@ from backend.api.app import create_app as create_api_app
 from backend.domain.market_data.sqlite_repository import SqliteMarketDataRepository
 from backend.domain.model.analytics import AnalyticResult
 from backend.features.returns import close_price_series_provider
+from backend.ingestion.filesystem_object_store import FilesystemObjectStore
+from backend.orchestration.batch import BatchManifest, run_ingest_batch
 from backend.platform.identifiers import InstrumentId
+from backend.providers.yfinance.adapter import YFinanceAdapter
+
+#: What `build_ingest_runner` hands back: run the batch for these instruments, at this
+#: instant, over this window.
+IngestRunner = Callable[[Sequence[InstrumentId], datetime, int, str], BatchManifest]
 
 #: Where the domain store lives. SQLite is the development/CI backend (ED-003);
 #: PostgreSQL is the production system of record (ADR-0008) and replaces this line,
 #: not the layers above it.
 DATABASE_ENV = "NIVESH_DATABASE"
 DEFAULT_DATABASE = "nivesh.sqlite3"
+
+#: Where verbatim raw captures land. The filesystem backend is the development/CI
+#: implementation of the `RawStore` port (ED-004); S3-compatible object storage is the
+#: production one (ADR-0009) and replaces this line, not the layers above it.
+RAW_ROOT_ENV = "NIVESH_RAW_ROOT"
+DEFAULT_RAW_ROOT = "raw-store"
 
 
 def build_app(database: str) -> FastAPI:
@@ -70,6 +85,40 @@ def build_app(database: str) -> FastAPI:
         return one_year_return_for(instrument_id, provider, as_of=now, computed_at=now)
 
     return create_api_app(metric_service, clock=lambda: datetime.now(UTC))
+
+
+def build_ingest_runner(database: str, raw_root: str) -> IngestRunner:
+    """Compose the ingest DAG over the live provider, a raw store and a repository.
+
+    The *second* thing this entry point composes, and deliberately in the same module:
+    ED-014's guardrail asserts `backend.main` is the only unlayered module under
+    `backend/`, so a second composition root would be an entry point exempt from every
+    lint. The batch logic itself lives in `backend.orchestration` — a real layer, which
+    is permitted `providers.ports` but *not* the adapter, so the concrete vendor arrives
+    only by injection from here.
+
+    Returns a callable rather than running anything: iteration, error policy and exit
+    codes are decisions, and decisions do not belong in a composition root (the guardrail
+    admits no control flow here). In production an orchestrator calls this; `tools/ingest.py`
+    is the operator's convenience wrapper around the same callable.
+    """
+    return lambda instrument_ids, requested_at, lookback_days, interval: run_ingest_batch(
+        instrument_ids,
+        provider=YFinanceAdapter(),
+        store=FilesystemObjectStore(Path(raw_root)),
+        repository=SqliteMarketDataRepository(database),
+        requested_at=requested_at,
+        lookback_days=lookback_days,
+        interval=interval,
+    )
+
+
+def create_ingest_runner() -> IngestRunner:
+    """The environment-reading factory, mirroring `create_app` for the ingest path."""
+    return build_ingest_runner(
+        os.environ.get(DATABASE_ENV, DEFAULT_DATABASE),
+        os.environ.get(RAW_ROOT_ENV, DEFAULT_RAW_ROOT),
+    )
 
 
 def create_app() -> FastAPI:

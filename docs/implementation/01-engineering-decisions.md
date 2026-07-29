@@ -56,7 +56,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 3. **The Configuration Source is authoritative for reproducibility.** The prose here explains
    *why*; the config file is the *what* that CI/deploys actually consume.
 4. **No duplication with ADRs.** An ED cites the ADR it realizes; it does not re-decide it.
-5. **IDs are permanent and never reused;** next id is **ED-019**.
+5. **IDs are permanent and never reused;** next id is **ED-020**.
 
 ---
 
@@ -81,6 +81,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | [ED-016](#ed-016--engine-parameters-recorded-in-the-lineage-handle) | Engine parameters recorded in the lineage handle | Accepted | doc 04, doc 08, ADR-0014/0017 |
 | [ED-017](#ed-017--canonical-instrument-identity--mic-exchange-isin-and-aliases) | Canonical instrument identity — MIC exchange, ISIN, aliases | Accepted | doc 04, ADR-0006, doc 06 |
 | [ED-018](#ed-018--reference-data-as-a-committed-seed-file) | Reference data as a committed seed file | Accepted | doc 04, doc 07, doc 15 |
+| [ED-019](#ed-019--execution-outcomes-for-batch-ingestion) | Execution outcomes for batch ingestion | Accepted | doc 05, doc 06, doc 16 |
 
 ---
 
@@ -561,6 +562,47 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
   [doc 07](../architecture/07-database-design.md), [doc 15](../architecture/15-development-roadmap.md),
   [doc 06](../architecture/06-provider-abstraction-layer.md); realizes [ED-017](#ed-017--canonical-instrument-identity--mic-exchange-isin-and-aliases).
 
+### ED-019 · Execution outcomes for batch ingestion
+- **Status:** Accepted (2026-07-30) — the decision [doc 05](05-provider-observations.md)
+  finding 5 explicitly deferred to M6b-2.
+- **Context:** An unknown, renamed or delisted symbol returns an **empty payload with no
+  error**. Across twenty instruments that is how a portfolio silently loses a holding: the
+  run reports success, nothing is ingested, and the absence only surfaces far downstream as
+  "no observations available".
+- **Decision.** The **adapter never raises on emptiness**; it reports a provider
+  observation (`bars_fetched`). **Orchestration** combines that with **reference data** (we
+  claim this instrument exists) and **request context** (how wide a window we asked for)
+  into an **execution outcome**: `INGESTED`, `EMPTY_EXPECTED`, `EMPTY_UNEXPECTED`, `FAILED`.
+  A `BatchManifest` records one outcome per instrument; the CLI prints them and **exits
+  non-zero** on anything that is not a clean ingest or a plausibly-empty short window.
+- **Why the adapter must not raise.** It cannot distinguish an unknown symbol from a
+  legitimately empty window — a newly listed instrument, a suspension, a holiday week all
+  look identical to it. Raising `NotAvailable` would be the adapter **asserting knowledge it
+  does not have**, and would break correct short-window fetches. Only orchestration can see
+  all three inputs the judgement needs.
+- **Why this is an observability fix, not a correctness one.** Fail-closed already held: an
+  empty payload puts *nothing* in the canonical model and the metric above reports
+  `Unavailable` with a reason, never zero. Nothing wrong was ever computed. What was missing
+  is that **a run reported success having ingested nothing**.
+- **Alternatives Considered:** *Adapter raises `NotAvailable` on zero bars* — earlier
+  failure, but a false claim and broken short windows. *A single `EMPTY` state* — cannot
+  distinguish a plausible quiet week from a symbol that has stopped existing, so either it
+  fails noisily on legitimate runs or it stops being an alarm. *Classify on rows written* —
+  wrong by construction: an idempotent replay writes zero rows and would report a healthy
+  re-run as a silent failure, so every scheduled run would cry wolf. This is why
+  `bars_fetched` is carried separately from `observations_written`.
+- **Consequences.** `EMPTY_UNEXPECTED` is loud where it happens rather than discoverable in
+  a file nobody reads — a manifest cannot be an alarm. **The classification is a declared
+  heuristic:** with no trading-calendar entity (doc 04 names one; it is not built), the split
+  rests on window width alone, so `EMPTY_EXPECTED` means "plausible", never "verified", and
+  is still reported rather than silently passed. A real calendar would make it exact.
+- **Configuration Source:** `backend/orchestration/batch.py` (outcomes, classifier,
+  manifest), `backend/main.py` (`build_ingest_runner`), `tools/ingest.py` (exit code).
+- **Related Architecture Documents:** [doc 05](../architecture/05-market-data-architecture.md),
+  [doc 06](../architecture/06-provider-abstraction-layer.md),
+  [doc 16](../architecture/16-data-orchestration-and-freshness.md),
+  [ADR-0005](../architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters).
+
 ---
 
 ## Change log
@@ -576,5 +618,6 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | 2026-07-22 | **ED-014 recorded** during M4b: the strangler seam is a same-origin Next.js proxy, so no CORS middleware is added to the API. `backend/main.py` established as the ED-011 composition root and declared in `architecture_map.py`, with a guardrail test asserting it is the only unlayered module under `backend/`. | The dependency lint skips modules belonging to no layer, so an undeclared entry point would have been silently exempt from every rule. Declaring it turns a blind spot into a checked invariant. Next id: ED-015. |
 | 2026-07-22 | **ED-015 recorded** during M5: the skeleton's DAG is a stdlib task graph; ED-005 (Dagster) stays `Proposed` and no orchestration framework is introduced. | Doc 16 owns the orchestration *model* and defers the *product* to doc 12, banning ad-hoc cron only above the walking skeleton. The model's requirements — declared order, keyed idempotent tasks, runs as lineage events — are met without a framework. The capabilities that will force the product (scheduling, retries, backfill, invalidation cascades) are enumerated in the ED so the trigger is explicit. Next id: ED-016. |
 | 2026-07-22 | **ED-016 recorded** during M6a (Phase 1): engine invocation parameters are pinned in the lineage handle. | The first parameterized engine (`portfolio_risk_return`) exposed that a result recorded its inputs but not its invocation — the same holdings under different weights were indistinguishable in the envelope, so the result was not reproducible from it. Additive, under the ADR-0014 clause and the ED classification already set for ED-012/013. Next id: ED-017. |
+| 2026-07-30 | **ED-019 recorded** during M6b-2: the adapter reports only provider observations; orchestration combines them with reference data and request context into an execution outcome, with `EMPTY_EXPECTED` distinguished from `EMPTY_UNEXPECTED`. | Doc 05 finding 5 deferred this decision to M6b-2 by name. The adapter cannot distinguish an unknown symbol from a legitimately empty window, so raising there would assert knowledge it does not have; only orchestration sees all three inputs. Fail-closed already held — the gap was that a run reported success having ingested nothing. Next id: ED-020. |
 | 2026-07-30 | **ED-018 recorded** during M6b-1: reference state becomes a committed JSON seed loaded at import, replacing Python dict literals; `reference_version` moves into the seed; the goldens stop freezing it. | Doc 15's sequencing principle 4 requires that widening the universe never be a code change, and doc 04 calls universes "data, editable without code" — both were false while the registry was a literal. Doc 07's reference tables remain the deployed home; a seed file is the ED-003/ED-004 pattern applied again (honour the model now, stand up the infrastructure where it is first needed). Next id: ED-019. |
 | 2026-07-24 | **ED-017 recorded** ahead of M6b-1: the canonical instrument reference gains MIC exchange, optional ISIN and aliases; internal ids remain permanent readable slugs. | M6b-1 must verify that seeded data *belongs to the instrument we believe it does*, which is impossible for attributes never claimed. Doc 04 already specifies Exchange and names ISIN, so this implements the intended model. Aliases are included now because the seed's shape is cheap to change at 15–20 instruments and expensive at 500. Next id: ED-018. |
