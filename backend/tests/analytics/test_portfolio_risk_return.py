@@ -42,6 +42,7 @@ from backend.domain.model.instruments import (
 from backend.domain.model.observations import AuthorityTier, PriceObservation, Provenance
 from backend.domain.model.quantities import Currency, IndexLevel, Money, Ratio
 from backend.features.portfolio_returns import build_aligned_return_matrix
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.platform.identifiers import InstrumentId
 from backend.tests.analytics.portfolio_reference_implementation import (
     RATIO_RELATIVE_TOLERANCE,
@@ -63,6 +64,7 @@ PROVENANCE = Provenance(
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
     reference_version=REFERENCE_VERSION,
+    validation_version=VALIDATION_VERSION,
 )
 
 

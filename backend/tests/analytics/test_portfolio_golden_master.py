@@ -31,6 +31,7 @@ from backend.domain.model.instruments import REFERENCE_VERSION, reference_for
 from backend.domain.model.observations import AuthorityTier, PriceObservation, Provenance
 from backend.domain.model.quantities import Currency, Money
 from backend.features.portfolio_returns import build_aligned_return_matrix
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.platform.identifiers import InstrumentId
 
 GOLDEN = Path(__file__).parent / "golden" / "portfolio_risk_return_v1.json"
@@ -45,6 +46,7 @@ PROVENANCE = Provenance(
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
     reference_version=REFERENCE_VERSION,
+    validation_version=VALIDATION_VERSION,
 )
 
 

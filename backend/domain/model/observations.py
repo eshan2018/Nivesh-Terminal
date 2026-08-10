@@ -39,6 +39,10 @@ class Provenance:
     provider: str
     raw_contract_version: str
     reference_version: str
+    #: Which validation rule set admitted (or rejected) this record. Required, not
+    #: defaulted: a fact that cannot say which rules vetted it is exactly the gap this
+    #: field closes, and a default would let one exist again.
+    validation_version: str
 
 
 @dataclass(frozen=True, slots=True)

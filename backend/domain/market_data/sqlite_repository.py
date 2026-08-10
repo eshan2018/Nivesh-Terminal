@@ -51,8 +51,11 @@ _KIND_INDEX = "INDEX_LEVEL"
 _OBSERVATION_COLUMNS = (
     "instrument_id, interval, event_time, knowledge_time, value_kind, currency, "
     "open_value, high_value, low_value, close_value, volume, authority, quality_flags, "
-    "raw_object_key, provider, raw_contract_version, reference_version"
+    "raw_object_key, provider, raw_contract_version, reference_version, "
+    "validation_version"
 )
+#: Derived, not hand-counted: a column added above must not need a second edit here.
+_OBSERVATION_PLACEHOLDERS = ", ".join(["?"] * (_OBSERVATION_COLUMNS.count(",") + 1))
 
 _SELECT_LATEST = f"""
 SELECT {_OBSERVATION_COLUMNS}
@@ -107,11 +110,10 @@ class SqliteMarketDataRepository:
         rows = [self._observation_row(o) for o in observations]
         if not rows:
             return 0
-        placeholders = ", ".join(["?"] * 17)
         with self._lock, self._connection:
             cursor = self._connection.executemany(
                 f"INSERT OR IGNORE INTO {OBSERVATIONS_TABLE} ({_OBSERVATION_COLUMNS}) "
-                f"VALUES ({placeholders})",
+                f"VALUES ({_OBSERVATION_PLACEHOLDERS})",
                 rows,
             )
             return cursor.rowcount
@@ -146,6 +148,7 @@ class SqliteMarketDataRepository:
             observation.provenance.provider,
             observation.provenance.raw_contract_version,
             observation.provenance.reference_version,
+            observation.provenance.validation_version,
         )
 
     @staticmethod
@@ -173,6 +176,7 @@ class SqliteMarketDataRepository:
                 provider=row["provider"],
                 raw_contract_version=row["raw_contract_version"],
                 reference_version=row["reference_version"],
+                validation_version=row["validation_version"],
             ),
         )
 
@@ -189,6 +193,7 @@ class SqliteMarketDataRepository:
                 _iso(record.quarantined_at),
                 record.provenance.provider,
                 record.provenance.reference_version,
+                record.provenance.validation_version,
             )
             for record in records
         ]
@@ -198,7 +203,7 @@ class SqliteMarketDataRepository:
             cursor = self._connection.executemany(
                 f"INSERT OR IGNORE INTO {QUARANTINE_TABLE} (instrument_id, raw_object_key, "
                 "raw_timestamp, reasons, payload_json, quarantined_at, provider, "
-                "reference_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "reference_version, validation_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
             return cursor.rowcount
@@ -222,6 +227,7 @@ class SqliteMarketDataRepository:
                     provider=row["provider"],
                     raw_contract_version="",  # not part of the quarantine record
                     reference_version=row["reference_version"],
+                    validation_version=row["validation_version"],
                 ),
             )
             for row in cursor

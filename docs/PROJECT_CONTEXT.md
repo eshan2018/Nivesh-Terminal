@@ -29,7 +29,7 @@ migration to reverse. Next id: **ADR-0021, still unused.** Nine milestones were 
 without spending one; that is evidence the architecture was sufficient, and the bar for the
 first one should stay high.
 
-**Implementation choices remain Engineering Decisions** (next id: **ED-020**) and do not
+**Implementation choices remain Engineering Decisions** (next id: **ED-021**) and do not
 need an ADR. The distinction and its litmus are in
 [doc 01](implementation/01-engineering-decisions.md); when in doubt, classify before writing
 code, not after.
@@ -52,7 +52,7 @@ Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
                        v0.2-compute-slice           (L6–L7, compute half)
                        v0.3-walking-skeleton-complete (Phase 0.5 closed)
-Tests                  359 passing
+Tests                  368 passing
 Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
                        at M4a; L1–L7 remain stdlib-only)
 CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
@@ -356,7 +356,7 @@ How decisions get made here, recorded because it is easy to lose and expensive t
 4. **Do not make architectural assumptions.** When a decision is genuinely the user's, present
    2–3 options with trade-offs plus a recommendation, then wait.
 5. **Architectural change → ADR** (`docs/architecture/18-…`; next id **ADR-0021**, unused).
-   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-020**).
+   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-021**).
    *Threshold:* does it change architecture, boundaries, public contracts, maintainability or
    deployment model, or require a **migration** if reversed? If not, it is an ED.
 
@@ -432,7 +432,7 @@ docs/
     06-universe-verification.md    identity evidence — regenerate, don't hand-edit
     07-ingestion-at-scale.md       the first real ingestion run (M6b-2)
 
-backend/                      the layered app (359 tests)
+backend/                      the layered app (368 tests)
   platform/                   kernel: InstrumentId
   providers/ports/            PriceHistoryPort, error taxonomy
   providers/yfinance/         the ONLY place vendor code may appear; symbology.json

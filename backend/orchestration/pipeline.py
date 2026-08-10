@@ -109,6 +109,9 @@ class PipelineRun:
     requested_at: datetime
     reference_version: str
     raw_contract_version: str
+    #: Which validation rule set this run applied. Without it, two runs over the same
+    #: raw object under different rules are indistinguishable in the record (ED-020).
+    validation_version: str
     provider: str
     raw_object_keys: tuple[str, ...]
     #: How many bars the PROVIDER returned — a provider observation, distinct from how
@@ -132,6 +135,7 @@ class PipelineRun:
                 "requested_at": self.requested_at.isoformat(),
                 "reference_version": self.reference_version,
                 "raw_contract_version": self.raw_contract_version,
+                "validation_version": self.validation_version,
                 "provider": self.provider,
                 "raw_object_keys": list(self.raw_object_keys),
                 "bars_fetched": self.bars_fetched,
@@ -154,6 +158,7 @@ class PipelineRun:
             requested_at=datetime.fromisoformat(data["requested_at"]),
             reference_version=data["reference_version"],
             raw_contract_version=data["raw_contract_version"],
+            validation_version=data["validation_version"],
             provider=data["provider"],
             raw_object_keys=tuple(data["raw_object_keys"]),
             bars_fetched=data["bars_fetched"],
@@ -282,7 +287,13 @@ def _persist_from(
     written = repository.save_observations(observations)
     quarantined_written = repository.save_quarantined(quarantined)
 
-    config_version = f"{REFERENCE_VERSION}+{response.fetch.raw_contract_version}"
+    # The task's configuration identity. The validation version belongs here because a
+    # rule change makes this a genuinely different unit of work over the same raw object
+    # — without it, a replay under new rules reuses the old key and the divergence is
+    # invisible (ED-020).
+    config_version = (
+        f"{REFERENCE_VERSION}+{response.fetch.raw_contract_version}+{outcome.validation_version}"
+    )
     return PipelineRun(
         run_id=_run_id(response.instrument_id, knowledge_time),
         pipeline_version=PIPELINE_VERSION,
@@ -290,6 +301,7 @@ def _persist_from(
         requested_at=requested_at,
         reference_version=REFERENCE_VERSION,
         raw_contract_version=response.fetch.raw_contract_version,
+        validation_version=outcome.validation_version,
         provider=response.fetch.provider,
         raw_object_keys=(raw_object_key,),
         bars_fetched=len(response.bars),
