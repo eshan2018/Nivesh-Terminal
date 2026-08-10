@@ -1,0 +1,39 @@
+{
+  "_comment": [
+    "Internal InstrumentId -> yfinance vendor symbol (ADR-0006: identity is ours; the",
+    "vendor symbol is a cross-reference attribute).",
+    "",
+    "This mapping lives INSIDE the adapter package on purpose. Doc 04 describes a shared",
+    "symbology table, but a shared table earns its keep only once a second provider",
+    "exists to share it (doc 06 defers the router to Phase 5), and the layer map forbids",
+    "L1 from importing the domain. Until then each adapter owns its own column, and a",
+    "hermetic test asserts this file never names an instrument the canonical seed does",
+    "not know — the drift that would otherwise be invisible.",
+    "",
+    "A wrong symbol here is the failure M6b-1 exists to prevent: the vendor answers an",
+    "unknown symbol with an EMPTY payload rather than an error (doc 05 finding 5), so a",
+    "typo ingests silently. tools/verify_universe.py is what catches it."
+  ],
+  "symbols": {
+    "reliance": "RELIANCE.NS",
+    "tcs": "TCS.NS",
+    "infosys": "INFY.NS",
+    "hdfc-bank": "HDFCBANK.NS",
+    "icici-bank": "ICICIBANK.NS",
+    "state-bank-of-india": "SBIN.NS",
+    "kotak-mahindra-bank": "KOTAKBANK.NS",
+    "axis-bank": "AXISBANK.NS",
+    "itc": "ITC.NS",
+    "hindustan-unilever": "HINDUNILVR.NS",
+    "bharti-airtel": "BHARTIARTL.NS",
+    "larsen-toubro": "LT.NS",
+    "bajaj-finance": "BAJFINANCE.NS",
+    "bajaj-finserv": "BAJAJFINSV.NS",
+    "maruti-suzuki": "MARUTI.NS",
+    "nippon-nifty-bees": "NIFTYBEES.NS",
+    "nippon-bank-bees": "BANKBEES.NS",
+    "nippon-gold-bees": "GOLDBEES.NS",
+    "nifty-50": "^NSEI",
+    "apple": "AAPL"
+  }
+}

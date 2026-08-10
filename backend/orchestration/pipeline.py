@@ -111,6 +111,12 @@ class PipelineRun:
     raw_contract_version: str
     provider: str
     raw_object_keys: tuple[str, ...]
+    #: How many bars the PROVIDER returned — a provider observation, distinct from how
+    #: many rows were written. A re-run of an already-ingested window writes zero
+    #: observations while having fetched hundreds of bars; conflating the two would
+    #: report an idempotent replay as an empty fetch. Classifying emptiness is
+    #: orchestration's job (see `batch.py`) and needs the provider's own count.
+    bars_fetched: int
     observations_written: int
     quarantined_written: int
     knowledge_time: datetime
@@ -128,6 +134,7 @@ class PipelineRun:
                 "raw_contract_version": self.raw_contract_version,
                 "provider": self.provider,
                 "raw_object_keys": list(self.raw_object_keys),
+                "bars_fetched": self.bars_fetched,
                 "observations_written": self.observations_written,
                 "quarantined_written": self.quarantined_written,
                 "knowledge_time": self.knowledge_time.isoformat(),
@@ -149,6 +156,7 @@ class PipelineRun:
             raw_contract_version=data["raw_contract_version"],
             provider=data["provider"],
             raw_object_keys=tuple(data["raw_object_keys"]),
+            bars_fetched=data["bars_fetched"],
             observations_written=data["observations_written"],
             quarantined_written=data["quarantined_written"],
             knowledge_time=datetime.fromisoformat(data["knowledge_time"]),
@@ -284,6 +292,7 @@ def _persist_from(
         raw_contract_version=response.fetch.raw_contract_version,
         provider=response.fetch.provider,
         raw_object_keys=(raw_object_key,),
+        bars_fetched=len(response.bars),
         observations_written=written,
         quarantined_written=quarantined_written,
         knowledge_time=knowledge_time,

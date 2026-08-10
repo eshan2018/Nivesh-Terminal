@@ -252,7 +252,7 @@ def test_portfolios_hold_ownable_instruments_only(
     kind: InstrumentType, currency: Currency | None, supported: bool
 ) -> None:
     """An ETF is ownable and behaves like an equity; an index is a statistic."""
-    reference = InstrumentReference(InstrumentId("x"), "X", kind, currency)
+    reference = InstrumentReference(InstrumentId("x"), "X", kind, currency, "XNSE")
     assert supported_for_portfolio(reference) is supported
 
 

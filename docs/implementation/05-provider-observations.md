@@ -153,6 +153,106 @@ is the class of silent identity error M6b-1's verification exists to catch, and 
 reason ISIN is worth carrying — it is the only attribute that is globally unique and
 machine-checkable.
 
+### 10 · ⚠️ ISIN is **not** in `Ticker.info` — and a green report can still mean nothing
+
+Recorded in M6b-1. `isin` is a separate `Ticker` **property**, not a key in the `.info`
+dict:
+
+```
+Ticker("RELIANCE.NS").info.get("isin")  →  None
+Ticker("RELIANCE.NS").isin              →  "INE002A01018"
+```
+
+The first version of `tools/verify_universe.py` read `info["isin"]`. Every instrument
+therefore reported "vendor offers nothing", every ISIN check resolved to
+`uncorroborated`, and **all twenty rows still came back `OK`** — a completely clean
+verification report in which one of the checks had silently asked no question at all.
+
+**This is the finding, not the typo.** A verification suite fails safe only if you can
+tell the difference between "the vendor agrees" and "the vendor was never asked", and a
+row-level verdict cannot show you that. It was caught by reading the detail column and
+noticing that a field finding 9 had *observed working* was now universally empty. Two
+consequences were adopted: the report prints every check's detail rather than a verdict
+alone, and `uncorroborated` is displayed as a distinct outcome rather than folded into a
+pass.
+
+Availability also turns out to be **inconsistent across equities**, which refines finding
+9's "absent for ETFs": of 20 seeded instruments, 9 returned a check-digit-valid ISIN and
+11 returned the literal `"-"` — including TCS, Infosys, Axis Bank, Bharti Airtel and both
+Bajaj entities. There is no evident pattern separating them.
+
+### 11 · The `LT.NS` ISIN discrepancy reproduces
+
+Finding 9 recorded, as an open question, that `LT.NS` returns `longName: "Larsen & Toubro
+Limited"` with `isin: INE214T01019` — an identifier that may belong to LTIMindtree
+rather than L&T. **The M6b-1 run reproduces it exactly**, so it is a stable vendor
+behaviour rather than a transient glitch, and at least one further candidate in the same
+run does not match the value we believe that company carries.
+
+Neither value is asserted here, because we hold no authoritative source for either — and
+that is the point. The vendor's ISINs are recorded as **candidates awaiting confirmation
+against CDSL/NSDL or exchange listing data**, never adopted into the seed. Had M6b-1
+seeded ISINs *from* the provider, this run would have verified the provider against
+itself, attributed a plausible identifier to the wrong company, and passed.
+
+### 12 · ⚠️ `period="365d"` means 365 **bars**, not 365 days
+
+Recorded in M6b-2, and fixed in the adapter. Measured against `RELIANCE.NS`:
+
+```
+period="5d"    →    5 bars over    6 calendar days
+period="30d"   →   30 bars over   41 calendar days
+period="365d"  →  365 bars over  537 calendar days   ← ~18 months
+```
+
+The adapter passed `PriceHistoryRequest.lookback_days` straight through as the vendor's
+`period`, so a canonical request for a year of history silently fetched a year and a
+half. **The canonical contract said "days" and the vendor heard "bars"** — a vendor quirk
+altering the meaning of a request, which is precisely what doc 06 keeps inside L1.
+
+The first live batch was ingested under those semantics before anyone noticed, because
+nothing looks wrong about more data than you asked for. It surfaced only from checking
+whether 365 bars was a plausible number of NSE trading days in a year (it is not; ~250
+is).
+
+**Fix:** `_default_fetch` now sends an explicit `start`/`end` range derived from
+`lookback_days`. A 365-day request returns 250 bars over exactly 365 calendar days. Days
+are also the vendor-neutral unit — 365 *bars* would span different periods for daily and
+weekly intervals, while 365 days does not.
+
+### 13 · ⚠️⚠️ The current session's bar is **NaN**, and comparison-based validation cannot see it
+
+The most serious defect found so far, surfaced by the first real batch.
+
+The vendor returns a bar for the current, still-open session with `NaN` for open, high,
+low and close. Every check in the L3 gate was a comparison — `value <= 0`, `high < low`,
+`low > min(open, close)` — and **every comparison against NaN evaluates to False**. So a
+NaN bar passed a fail-closed gate without tripping a single check, was stored as
+`Decimal("NaN")` (a perfectly valid `Decimal`), crossed the C3 float seam intact, and
+produced:
+
+```
+one_year_return(reliance)  →  status AVAILABLE, value NaN
+```
+
+An `AVAILABLE`, fully traced, lineage-complete metric whose value is not a number. **That
+is the worst result this platform can emit** — worse than an error, because it is
+number-shaped, survives every type in the stack, and would render to an investor as
+though it were a measurement. It defeated the fail-closed guarantee (principle 13) not by
+bypassing it but by being invisible to it.
+
+**Fix, at two levels.** The gate now checks finiteness explicitly and *before* the
+ordering checks — so the bar quarantines with the true reason ("close is not a finite
+number") rather than a misleading one about OHLC ordering. Beneath it, `Money`,
+`IndexLevel`, `Ratio` and `to_decimal` refuse non-finite values at construction, so any
+path that ever bypasses the gate fails loudly instead of writing a non-number into the
+canonical model. The first clean batch quarantined 18 such bars — retained with reasons,
+never discarded — and wrote 4,976 finite observations.
+
+**The general lesson, worth more than the bug:** a validation suite built from
+comparisons has a blind spot exactly the size of NaN, and no amount of adding more
+comparisons closes it.
+
 ## What M6b-0 deliberately did **not** change
 
 No behavioural change to `backend/`. No adapter fix for finding 5. No universe seeding.
@@ -164,5 +264,8 @@ guarantee everything else rests on (doc 11).
 
 | Date | Change |
 |------|--------|
+| 2026-07-30 | Finding 13 added during M6b-2: the vendor's current-session bar is all-NaN, and every comparison against NaN is False, so it passed the fail-closed gate untouched and produced an `AVAILABLE` metric valued NaN. Finiteness is now checked explicitly at L3, with the quantity types refusing non-finite values as a backstop. |
+| 2026-07-30 | Finding 12 added during M6b-2: `period="Nd"` returns N *bars*, not N calendar days, so a one-year request was silently fetching ~18 months. The adapter now sends an explicit `start`/`end` date range. |
+| 2026-07-30 | Findings 10 and 11 added during M6b-1's live verification run. ISIN is a `Ticker` property, not an `.info` key — the first verifier read the wrong field and produced a fully green report in which the ISIN check asked nothing. ISIN availability is inconsistent across equities, not merely absent for ETFs. The `LT.NS` name/ISIN discrepancy reproduces stably. |
 | 2026-07-24 | Finding 9 added while designing M6b-1: identity metadata probed; ISIN available for equities but not ETFs; a name/ISIN discrepancy on `LT.NS` recorded as an open question. |
 | 2026-07-24 | Created in M6b-0. First live execution of the provider path in the project's history; findings 1–8 recorded, a 400-bar real payload captured as a regression fixture, and the fixture's implications pinned as contract tests. |

@@ -8,9 +8,18 @@ Two rules are enforced *structurally*, not by convention:
 * **Index levels are unitless points and cannot be FX-converted.** `IndexLevel`
   has no currency field at all, so there is no currency to convert — the prototype's
   index-inflation bug is type-impossible here, exactly as doc 04 requires.
+* **A quantity is always a number.** `Decimal("NaN")` and `Decimal("Infinity")` are
+  perfectly valid decimals, so "it is a Decimal" was never the same as "it is a
+  quantity". A non-finite price is refused at construction (M6b-2).
+
+  The gate at L3 is what *handles* a non-finite vendor value — it quarantines the bar
+  with a reason, which is the correct, retainable outcome for bad input data. This guard
+  is the backstop beneath it: it makes any path that bypasses the gate fail loudly
+  instead of writing a number-shaped non-number into the canonical model.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -39,7 +48,10 @@ def to_decimal(value: float | int | str | Decimal) -> Decimal:
         return value
     if isinstance(value, bool):  # bool is an int subclass; never a quantity
         raise TypeError("bool is not a valid quantity value")
-    return Decimal(str(value))
+    converted = Decimal(str(value))
+    if not converted.is_finite():
+        raise ValueError(f"quantity must be a finite number, got {value!r}")
+    return converted
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +69,8 @@ class Money:
             )
         if not isinstance(self.currency, Currency):
             raise TypeError("Money.currency must be a Currency")
+        if not self.amount.is_finite():
+            raise ValueError(f"Money.amount must be finite, got {self.amount}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +92,13 @@ class Ratio:
                 f"Ratio.value must be a float, got {type(self.value).__name__} "
                 "(ratios are statistical quantities, not money — ADR-0016)"
             )
+        # A NaN ratio is how "we could not compute this" disguises itself as an answer.
+        # Absence is expressed by `AnalyticResult.unavailable`, never by a non-number.
+        if not math.isfinite(self.value):
+            raise ValueError(
+                f"Ratio.value must be finite, got {self.value} — an incomputable result "
+                "is Unavailable with a reason, never a number-shaped non-number"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +112,8 @@ class IndexLevel:
             raise TypeError(
                 f"IndexLevel.points must be a Decimal, got {type(self.points).__name__}"
             )
+        if not self.points.is_finite():
+            raise ValueError(f"IndexLevel.points must be finite, got {self.points}")
 
 
 # The value a price can take. An index price can never be treated as money.

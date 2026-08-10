@@ -25,7 +25,6 @@
   },
   "metric_id": "portfolio_risk_return",
   "quality_flags": [],
-  "reference_version": "skeleton-reference/v1",
   "status": "AVAILABLE",
   "value": "0.05940293464074187"
 }

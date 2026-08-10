@@ -26,6 +26,7 @@ from pathlib import Path
 
 from backend.analytics.one_year_return import one_year_return
 from backend.domain.model.analytics import ResultStatus
+from backend.domain.model.instruments import REFERENCE_VERSION
 from backend.domain.model.observations import AuthorityTier, PriceObservation, Provenance
 from backend.domain.model.quantities import Currency, Money
 from backend.features.returns import build_close_price_series
@@ -42,7 +43,7 @@ PROVENANCE = Provenance(
     raw_object_key="raw/v1/yfinance/price-history/2025-01/reliance/golden.json",
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
-    reference_version="skeleton-reference/v1",
+    reference_version=REFERENCE_VERSION,
 )
 
 
@@ -75,13 +76,17 @@ def _fixture_series() -> tuple[PriceObservation, ...]:
     return tuple(observations)
 
 
-def _actual() -> dict[str, object]:
+def _result():
     series = build_close_price_series(
         FakeRepository(_fixture_series()),  # type: ignore[arg-type]
         RELIANCE,
         as_of=AS_OF,
     )
-    result = one_year_return(series, computed_at=COMPUTED_AT)
+    return one_year_return(series, computed_at=COMPUTED_AT)
+
+
+def _actual() -> dict[str, object]:
+    result = _result()
     assert result.status is ResultStatus.AVAILABLE
     assert result.value is not None
     return {
@@ -92,7 +97,6 @@ def _actual() -> dict[str, object]:
         # order of operations is caught rather than rounded away.
         "value": repr(result.value.value),
         "formula_version": result.formula_version,
-        "reference_version": result.reference_version,
         "as_of": result.as_of.isoformat(),
         "computed_at": result.computed_at.isoformat(),
         "quality_flags": list(result.quality_flags),
@@ -105,3 +109,15 @@ def _actual() -> dict[str, object]:
 
 def test_the_engine_matches_its_golden_master() -> None:
     assert _actual() == json.loads(GOLDEN.read_text())
+
+
+def test_the_result_pins_the_current_reference_state() -> None:
+    """`reference_version` is asserted against the live constant, not frozen in the golden.
+
+    A golden master guards *methodology* drift (doc 11): if the formula, the ordering or
+    the anchor search changed, `value` moves and this test fails. Which reference state
+    the run used is lineage, not methodology — and freezing it would mean every seed
+    edit re-blessed two goldens, making "widening the universe is a data-ops task"
+    (doc 15, principle 4) false in practice.
+    """
+    assert _result().reference_version == REFERENCE_VERSION

@@ -2,7 +2,7 @@
 # `make check` runs the full guardrail + test gate (the same gate CI runs).
 PY ?= python
 
-.PHONY: install lint-arch lint test check skeleton serve openapi recompute
+.PHONY: install lint-arch lint test check skeleton serve openapi recompute verify-universe ingest
 
 install:  ## Install the backend and dev tooling into the active environment.
 	$(PY) -m pip install -e ".[dev]"
@@ -30,3 +30,11 @@ openapi:  ## Regenerate the committed OpenAPI contract artifact.
 
 recompute:  ## Recompute-from-raw: rebuild every derived value and time it (doc 00 §B6).
 	$(PY) -m tools.recompute_rto
+
+ingest:  ## LIVE: ingest the seeded universe; writes a run manifest, non-zero on trouble.
+	@echo "NIVESH_DATABASE=$${NIVESH_DATABASE:-nivesh.sqlite3} NIVESH_RAW_ROOT=$${NIVESH_RAW_ROOT:-raw-store}"
+	$(PY) -m tools.ingest
+
+verify-universe:  ## LIVE: check seeded identity against the provider; writes the evidence report.
+	@echo "Calls the live provider. Needs the 'live' extra; never run in CI."
+	$(PY) -m tools.verify_universe

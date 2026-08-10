@@ -3,7 +3,7 @@
 **Hand-off brief for any new session. Read this first, then the linked docs.**
 **This is the single authoritative hand-off document.** There is no separate product-context
 file; product intent lives in §2 below.
-Last updated: 2026-07-24 · `main` @ M6b-0 · reference state: tag `v0.3-walking-skeleton-complete`
+Last updated: 2026-07-30 · `main` @ M6b-2 · reference state: tag `v0.3-walking-skeleton-complete`
 
 ---
 
@@ -29,7 +29,7 @@ migration to reverse. Next id: **ADR-0021, still unused.** Nine milestones were 
 without spending one; that is evidence the architecture was sufficient, and the bar for the
 first one should stay high.
 
-**Implementation choices remain Engineering Decisions** (next id: **ED-018**) and do not
+**Implementation choices remain Engineering Decisions** (next id: **ED-020**) and do not
 need an ADR. The distinction and its litmus are in
 [doc 01](implementation/01-engineering-decisions.md); when in doubt, classify before writing
 code, not after.
@@ -45,15 +45,14 @@ code, not after.
 ```
 Phase                  **Phase 1 IN PROGRESS** — Portfolio Intelligence
                        (Phase 0.5 remains COMPLETE and FROZEN — see §0)
-Last milestone         M6b-0 — live provider validated; real payload recorded
-Next milestone         M6b-1 — universe seeding + identity verification
-                       (design settled, see §11 — implementation not started)
+Last milestone         M6b-2 — first live ingestion at scale; real numbers end to end
+Next milestone         M6c — POST /v1/portfolio/analysis + the portfolio pane
 Current branch         main
 Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
                        v0.2-compute-slice           (L6–L7, compute half)
                        v0.3-walking-skeleton-complete (Phase 0.5 closed)
-Tests                  290 passing
+Tests                  359 passing
 Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
                        at M4a; L1–L7 remain stdlib-only)
 CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
@@ -84,8 +83,13 @@ Phase 1 · Portfolio Intelligence (stateless — no accounts, no persistence)
 ✓ M6a  Engine       return-series + aligned-matrix features; portfolio risk & return
 ✓ M6b-0 Provider     live path validated; 400-bar real payload recorded as a fixture;
                      findings in docs/implementation/05-provider-observations.md
-□ M6b-1 Universe     seed ~15–20 commonly-held securities with verified identity (§11)
-□ M6b-2 Ingestion    live ingestion at scale; real numbers visible in the live pane
+✓ M6b-1 Universe     20 securities seeded as DATA (ED-018) with MIC/ISIN/aliases (ED-017);
+                     identity verified against the live provider — report in
+                     docs/implementation/06-universe-verification.md
+✓ M6b-2 Ingestion    20 instruments ingested live (4,976 observations, 6.7s); batch
+                     execution outcomes (ED-019); evidence in
+                     docs/implementation/07-ingestion-at-scale.md.
+                     Two live-only defects found and fixed — see §10 item 6
 □ M6c  Serve        POST /v1/portfolio/analysis + the portfolio pane
 □ M7   Diversification  correlation matrix + efficient frontier (second investor question)
 ```
@@ -352,7 +356,7 @@ How decisions get made here, recorded because it is easy to lose and expensive t
 4. **Do not make architectural assumptions.** When a decision is genuinely the user's, present
    2–3 options with trade-offs plus a recommendation, then wait.
 5. **Architectural change → ADR** (`docs/architecture/18-…`; next id **ADR-0021**, unused).
-   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-011**).
+   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-020**).
    *Threshold:* does it change architecture, boundaries, public contracts, maintainability or
    deployment model, or require a **migration** if reversed? If not, it is an ED.
 
@@ -424,19 +428,23 @@ docs/
                                    one-year-total-return v1 (+ golden seeding record)
     03-walking-skeleton-status.md  status snapshot (regenerate, don't hand-edit)
     04-recompute-rto.md            the recompute procedure + the measured RTO number
-    05-provider-observations.md    how the live provider actually behaves (M6b-0)
+    05-provider-observations.md    how the live provider actually behaves (M6b-0/M6b-1)
+    06-universe-verification.md    identity evidence — regenerate, don't hand-edit
+    07-ingestion-at-scale.md       the first real ingestion run (M6b-2)
 
-backend/                      the layered app (45 modules, 173 tests)
+backend/                      the layered app (359 tests)
   platform/                   kernel: InstrumentId
   providers/ports/            PriceHistoryPort, error taxonomy
-  providers/yfinance/         the ONLY place vendor code may appear
+  providers/yfinance/         the ONLY place vendor code may appear; symbology.json
   ingestion/                  raw_store, filesystem_object_store, raw_capture,
                               validation (L3), normalization (L4)
-  domain/model/               quantities (Money/IndexLevel), instruments, observations
+  domain/model/               quantities (Money/IndexLevel), instruments + universe.json,
+                              observations
   domain/market_data/         schema, repository port, sqlite_repository
   features/                   L6: returns.py — close_price_series, the C3 seam
   analytics/                  L7: one_year_return.py → AnalyticResult
-  api/ orchestration/         ← EMPTY, awaiting M4/M5
+  api/                        L9: app, DTOs, OpenAPI export
+  orchestration/              the forward-only ingest DAG + recompute + batch outcomes
 
 tools/ci/                     the three architecture guardrails + tests
 tools/skeleton_status.py      live status board (`make skeleton`)
@@ -457,6 +465,8 @@ make install     # pip install -e ".[dev]"
 make check       # guardrails + ruff + pytest  ← the gate, before every commit
 make skeleton    # live status board + real end-to-end trace
 make recompute   # rebuild every derived value from raw and time it (doc 00 §B6)
+make verify-universe  # LIVE: re-check seeded identity against the provider
+make ingest      # LIVE: ingest the seeded universe (non-zero exit on trouble)
 make serve       # run the API locally (needs the `serve` extra)
 ```
 
@@ -498,17 +508,59 @@ make serve       # run the API locally (needs the `serve` extra)
 4. **One interpretation open to a second opinion** — L4 preserves native currency and does not
    FX-convert (recorded in the plan's decision log). Changing it is a plan change, not an
    architecture change.
-5. **`source_ref` resolution is O(n)** — a lineage endpoint resolves a handle by scanning raw
+6. **Two defects existed for months and were only findable live (M6b-2).** The window
+   parameter meant bars not days, and the fail-closed gate could not see NaN — a
+   still-open session's all-NaN bar passed every comparison-based check and produced an
+   `AVAILABLE` metric valued `NaN`. Both are fixed and pinned by tests
+   ([doc 05](implementation/05-provider-observations.md) findings 12–13).
+   *What to carry forward:* hermetic tests prove behaviour against what we imagined the
+   vendor sends. Neither defect was a coverage gap — the gate had tests and they passed.
+   A periodic deliberate live run is the only thing that finds this class, which is why
+   `make ingest` and `make verify-universe` exist as standing tools rather than one-off
+   scripts.
+5. **No instrument carries an ISIN yet — deliberate, and the founder's call to close.**
+   All 20 seeded rows have `isin: null`. The vendor offers a check-digit-valid ISIN for 9 of
+   them, but adopting a value *from* the system being verified would make the check circular,
+   and two of the offered values disagree with what those companies are believed to carry
+   ([doc 05](implementation/05-provider-observations.md) finding 11). The candidates are listed
+   in [doc 06](implementation/06-universe-verification.md).
+   *What closes it:* confirm each against CDSL/NSDL or exchange listing data, paste the
+   confirmed values into the seed (one field per row — the shape already exists, which is why
+   ED-017 added it early), and re-run `make verify-universe`. The run then checks agreement
+   rather than reporting a candidate, and the check stops being vacuous.
+   *Risk accepted meanwhile:* the join key every Indian demat statement uses is absent, so
+   broker-import work would have nothing to match on. Nothing currently depends on it.
+6. **`source_ref` resolution is O(n)** — a lineage endpoint resolves a handle by scanning raw
    object keys (proven in `backend/tests/api/test_source_ref_resolution.py`). Correct and cheap at
    skeleton scale; needs a stored `ref → key` index before real traffic. The published contract
    does not change when that index lands.
 
 ---
 
-## 11 · M6b-1 — approved design (implementation not started)
+## 11 · M6b-1 — DELIVERED (2026-07-30)
 
-The next milestone's design is **settled and approved**; only the code is outstanding. Recorded
-here so a new session implements the agreed design rather than re-deriving it.
+**Built:** the universe is now **data, not code** — `backend/domain/model/universe.json` (20
+instruments) and `backend/providers/yfinance/symbology.json`, per **[ED-018](implementation/01-engineering-decisions.md#ed-018--reference-data-as-a-committed-seed-file)**.
+`InstrumentReference` carries MIC exchange, optional ISIN and aliases (ED-017); MIC shape and
+the **ISIN ISO 6166 check digit** are enforced in the constructor. `REFERENCE_VERSION` moved into
+the seed and bumped to `instrument-reference/v2`; both goldens now assert it against the live
+constant instead of freezing it, so a seed edit no longer re-blesses a golden — **both engines'
+values were byte-identical across the bump**, which is the evidence that no methodology moved.
+
+**Verified:** `python -m tools.verify_universe` (or `make verify-universe`) probed all 20
+instruments live — **20 OK, 0 failed** — with the evidence committed to
+[doc 06](implementation/06-universe-verification.md). The comparison logic is pure and
+hermetically unit-tested; only the probe touches the network; CI never runs it.
+
+**Two things the run taught us, both recorded in [doc 05](implementation/05-provider-observations.md):**
+the first verifier read `info["isin"]` instead of `Ticker.isin` and produced a **fully green
+report in which the ISIN check asked no question at all** — a green report is not evidence unless
+you know which questions were asked. And the `LT.NS` name/ISIN discrepancy **reproduces stably**.
+No vendor ISIN was adopted; all 10 valid ones are recorded as *candidates* awaiting an
+authoritative source. Seeding them from the vendor would have made the next run verify the vendor
+against itself.
+
+The approved design this implemented, kept for reference:
 
 **Investor question:** *"When I add HDFC Bank to my portfolio, am I actually getting HDFC Bank?"*
 The failure this prevents is the one nobody notices — a wrong ticker yields a plausible number,

@@ -102,7 +102,12 @@ def test_returns_the_metric_with_lineage_and_freshness(client_with_history: Test
     assert response.status_code == 200
     body = response.json()
 
-    assert body["instrument"] == {"id": "reliance", "name": "Reliance Industries", "type": "EQUITY"}
+    assert body["instrument"] == {
+        "id": "reliance",
+        # The seed now carries the legal name, which is what the vendor can corroborate.
+        "name": "Reliance Industries Limited",
+        "type": "EQUITY",
+    }
     assert body["metric"]["id"] == "one_year_return"
     assert body["metric"]["formula_version"] == "one-year-total-return/v1"
     assert body["metric"]["status"] == "AVAILABLE"

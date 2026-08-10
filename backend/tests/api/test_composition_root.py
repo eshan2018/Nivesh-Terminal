@@ -22,7 +22,15 @@ from fastapi.testclient import TestClient
 from backend.domain.market_data.sqlite_repository import SqliteMarketDataRepository
 from backend.domain.model.observations import AuthorityTier, PriceObservation, Provenance
 from backend.domain.model.quantities import Currency, Money
-from backend.main import DATABASE_ENV, DEFAULT_DATABASE, build_app, create_app
+from backend.main import (
+    DATABASE_ENV,
+    DEFAULT_DATABASE,
+    DEFAULT_RAW_ROOT,
+    RAW_ROOT_ENV,
+    build_app,
+    create_app,
+    create_ingest_runner,
+)
 from backend.platform.identifiers import InstrumentId
 
 RELIANCE = InstrumentId("reliance")
@@ -153,3 +161,31 @@ def test_the_database_location_is_configurable_and_defaulted() -> None:
     """Configuration is environment, not code — but a default keeps `make serve` trivial."""
     assert DATABASE_ENV == "NIVESH_DATABASE"
     assert DEFAULT_DATABASE.endswith(".sqlite3")
+
+
+# ── The ingest path composes here too (M6b-2) ─────────────────────────────────
+
+def test_the_ingest_runner_composes_without_touching_the_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The second thing this entry point composes, wired the way production wires it.
+
+    Hermetic because the instrument list is empty: composition constructs the live
+    adapter but nothing fetches, so this proves the wiring holds without a vendor call.
+    """
+    monkeypatch.setenv(DATABASE_ENV, str(tmp_path / "ingest.sqlite3"))
+    monkeypatch.setenv(RAW_ROOT_ENV, str(tmp_path / "raw"))
+
+    manifest = create_ingest_runner()([], datetime.now(UTC), 365, "1d")
+
+    assert manifest.results == ()
+    assert manifest.pipeline_version == "ingest-dag/v1"
+    assert manifest.counts() == {
+        "INGESTED": 0, "EMPTY_EXPECTED": 0, "EMPTY_UNEXPECTED": 0, "FAILED": 0
+    }
+
+
+def test_the_raw_store_location_is_configurable_and_defaulted() -> None:
+    """Raw capture needs a home in production too — same pattern as the database."""
+    assert RAW_ROOT_ENV == "NIVESH_RAW_ROOT"
+    assert DEFAULT_RAW_ROOT

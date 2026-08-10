@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from backend.providers.ports.errors import MalformedPayload, TransientError
 from backend.providers.ports.price_history import (
@@ -98,14 +98,30 @@ def _to_bar(row: dict[str, object]) -> RawBar:
 
 
 def _default_fetch(vendor_symbol: str, lookback_days: int, interval: str) -> RawFetch:
-    """Live fetch via yfinance. Imported lazily; not exercised by hermetic tests."""
+    """Live fetch via yfinance. Imported lazily; not exercised by hermetic tests.
+
+    **The window is an explicit date range, not the vendor's `period`.** Measured in
+    M6b-2: `period="365d"` returns *365 trading bars* — 537 calendar days of history —
+    not 365 calendar days. A canonical request that says `lookback_days` and silently
+    means "bars" is a vendor quirk leaking into the contract's meaning, which is exactly
+    what doc 06 keeps inside L1. Translating to `start`/`end` here makes the port mean
+    what it says, and keeps "days" vendor-neutral: 365 *bars* would span a different
+    period for daily and weekly intervals, while 365 days does not.
+
+    `end` is exclusive at the vendor, so today's bar needs tomorrow's date.
+    """
     import yfinance  # noqa: PLC0415  (lazy: keeps the module importable without the dep)
 
-    period = f"{max(lookback_days, 1)}d"
+    # The fetch instant is inherently "now"; it is recorded immutably as `fetched_at` in
+    # the metadata below, so the window this run used stays reconstructible from the raw
+    # envelope rather than depending on when a replay happens to run.
+    end = datetime.now(UTC).date() + timedelta(days=1)
+    start = end - timedelta(days=max(lookback_days, 1) + 1)
     try:
         frame = yfinance.download(
             vendor_symbol,
-            period=period,
+            start=start.isoformat(),
+            end=end.isoformat(),
             interval=interval,
             auto_adjust=True,
             progress=False,
