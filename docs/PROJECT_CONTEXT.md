@@ -52,7 +52,7 @@ Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
                        v0.2-compute-slice           (L6–L7, compute half)
                        v0.3-walking-skeleton-complete (Phase 0.5 closed)
-Tests                  368 passing
+Tests                  371 passing
 Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
                        at M4a; L1–L7 remain stdlib-only)
 CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
@@ -432,7 +432,7 @@ docs/
     06-universe-verification.md    identity evidence — regenerate, don't hand-edit
     07-ingestion-at-scale.md       the first real ingestion run (M6b-2)
 
-backend/                      the layered app (368 tests)
+backend/                      the layered app (371 tests)
   platform/                   kernel: InstrumentId
   providers/ports/            PriceHistoryPort, error taxonomy
   providers/yfinance/         the ONLY place vendor code may appear; symbology.json

@@ -641,11 +641,19 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 - **Consequences.** A rule change is now visible in the data, in the task key and in the
   run record. Reproducibility is unchanged and re-verified: `make recompute` remains
   byte-identical, because a rebuild and its original both stamp the same current version.
-  **Accepted costs:** two additive `NOT NULL` columns with no migration path, tolerable
-  only because the SQLite store is a disposable dev backend and Postgres is not deployed
-  — the first real deployment must create these columns with the table; and the constant
-  is a human commitment, so a rule edited without a bump still lies. The pinned test on
-  the constant makes that a failing test rather than a silent one.
+  **On the two new `NOT NULL` columns.** No migration mechanism is required at this
+  stage and none is added: the SQLite store is a **disposable development backend** —
+  recreated from `schema.py` on demand, gitignored, holding no data of record — so
+  "migrating" it is deleting a file. The production PostgreSQL schema does not yet exist;
+  **when production schema and migrations are introduced, they must include these two
+  columns as required**, exactly as they must include `reference_version`. That is a
+  normal input to schema creation, not an outstanding defect.
+  **The residual risk that is real:** the constant is a human commitment, so a rule
+  edited without a bump would otherwise still lie. `test_validation_behaviour_fingerprint.py`
+  removes that: it pins the gate's observable verdicts — including each threshold's
+  boundary value — so a policy change fails the suite until the version is bumped and the
+  fingerprint updated together. Verified by mutation: moving `JUMP_THRESHOLD` from 0.5 to
+  0.4 passed every other test in the suite and fails this one.
 - **Configuration Source:** `backend/ingestion/validation.py` (`VALIDATION_VERSION`,
   `ValidationOutcome.validation_version`), `backend/domain/model/observations.py`
   (`Provenance.validation_version`), `backend/domain/market_data/schema.py`,
