@@ -37,9 +37,18 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from backend.analytics.one_year_return import one_year_return_for
+from backend.analytics.portfolio_volatility_vs_reference import (
+    CONFIDENCE_LABEL,
+    portfolio_volatility_vs_reference_for,
+)
+from backend.api.app import PortfolioReferenceFrame
 from backend.api.app import create_app as create_api_app
 from backend.domain.market_data.sqlite_repository import SqliteMarketDataRepository
 from backend.domain.model.analytics import AnalyticResult
+from backend.features.portfolio_returns import (
+    aligned_reference_provider,
+    portfolio_matrix_provider,
+)
 from backend.features.returns import close_price_series_provider
 from backend.ingestion.filesystem_object_store import FilesystemObjectStore
 from backend.orchestration.batch import BatchManifest, run_ingest_batch
@@ -61,6 +70,12 @@ DEFAULT_DATABASE = "nivesh.sqlite3"
 #: production one (ADR-0009) and replaces this line, not the layers above it.
 RAW_ROOT_ENV = "NIVESH_RAW_ROOT"
 DEFAULT_RAW_ROOT = "raw-store"
+
+#: The market reference every portfolio comparison is made against, and the confidence
+#: level at which a difference is called. **Server-controlled, not request parameters**
+#: (M6c): if a caller could choose the index or the level, the same screenshot would mean
+#: different things to different readers and no number in it would be verifiable.
+PORTFOLIO_REFERENCE_INSTRUMENT = InstrumentId("nifty-50")
 
 
 def build_app(database: str) -> FastAPI:
@@ -84,7 +99,24 @@ def build_app(database: str) -> FastAPI:
         # the same instant for a live read; they diverge once results are materialized.
         return one_year_return_for(instrument_id, provider, as_of=now, computed_at=now)
 
-    return create_api_app(metric_service, clock=lambda: datetime.now(UTC))
+    matrix_provider = portfolio_matrix_provider(repository)
+    reference_provider = aligned_reference_provider(repository)
+
+    def portfolio_service(holdings, now: datetime) -> AnalyticResult:
+        return portfolio_volatility_vs_reference_for(
+            holdings, matrix_provider, reference_provider,
+            reference_id=PORTFOLIO_REFERENCE_INSTRUMENT, as_of=now, computed_at=now,
+        )
+
+    return create_api_app(
+        metric_service,
+        portfolio_service=portfolio_service,
+        reference_frame=PortfolioReferenceFrame(
+            instrument_id=PORTFOLIO_REFERENCE_INSTRUMENT.value,
+            confidence_level=CONFIDENCE_LABEL,
+        ),
+        clock=lambda: datetime.now(UTC),
+    )
 
 
 def build_ingest_runner(database: str, raw_root: str) -> IngestRunner:

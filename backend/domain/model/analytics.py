@@ -31,7 +31,30 @@ from backend.platform.identifiers import InstrumentId
 
 # Anything an analytic may report as a value. Money and IndexLevel stay decimal;
 # Ratio is the statistical float (ADR-0016).
+#
+# **Deliberately numeric only (ED-021).** A deterministic judgement is carried by the
+# additive `verdict` field below, not by widening this union — so a consumer reading a
+# value still reads a number, and the `AVAILABLE => value present` invariant keeps its
+# meaning because a judgement still reports the quantity it judged.
 AnalyticValue = Ratio | Money | IndexLevel
+
+
+class Verdict(StrEnum):
+    """A deterministic judgement's categorical outcome (ED-021).
+
+    A judgement is a *stage*, not a metric with a nicer label: evidence produces the
+    number, deterministic rules produce the verdict, and the two travel together in one
+    envelope so a reader can always check the verdict against the quantity behind it.
+
+    `NOT_DISTINGUISHABLE` is not "similar". Failing to detect a difference is not
+    evidence of equality — the band contains both genuinely-alike portfolios and ones
+    where the window is too short to separate them, and nothing here can tell those
+    apart without a threshold nobody has justified.
+    """
+
+    HIGHER_REALIZED_VOLATILITY = "HIGHER_REALIZED_VOLATILITY"
+    NOT_DISTINGUISHABLE = "NOT_DISTINGUISHABLE"
+    LOWER_REALIZED_VOLATILITY = "LOWER_REALIZED_VOLATILITY"
 
 
 class ResultStatus(StrEnum):
@@ -147,6 +170,20 @@ class AnalyticResult:
     computed_at: datetime
     quality_flags: tuple[str, ...]
     lineage: LineageHandle
+    verdict: Verdict | None = None
+    """The deterministic judgement this result carries, when it is one (ED-021).
+
+    Additive, under ADR-0014's stated revisit condition — "if the envelope proves
+    insufficient for a new analytic class, extend it additively" — and the fourth use of
+    that clause after ED-012, ED-013 and ED-016. A judgement is a new analytic class:
+    `value` still carries the quantity that was judged, so the envelope's invariants keep
+    their force, and `AnalyticValue` stays numeric.
+
+    `None` on every evidence engine's result, which is most of them. A result that
+    carries a verdict must also carry the value the verdict is about — enforced below,
+    because a verdict with nothing behind it is an assertion rather than a judgement.
+    """
+
     diagnostics: tuple[tuple[str, float], ...] = ()
     """Typed numeric facts about how the value was reached — e.g. how far the anchor
     bar sat from the requested date.
@@ -173,6 +210,11 @@ class AnalyticResult:
                 )
             if not self.unavailable_reason:
                 raise ValueError("an UNAVAILABLE result must state why")
+            if self.verdict is not None:
+                raise ValueError(
+                    "an UNAVAILABLE result must not carry a verdict — absent evidence "
+                    "cannot support a judgement (ED-021)"
+                )
 
     @classmethod
     def available(
@@ -187,6 +229,7 @@ class AnalyticResult:
         computed_at: datetime,
         quality_flags: tuple[str, ...] = (),
         diagnostics: tuple[tuple[str, float], ...] = (),
+        verdict: Verdict | None = None,
         lineage: LineageHandle,
     ) -> AnalyticResult:
         """A computed value, with the versions and inputs that produced it."""
@@ -203,6 +246,7 @@ class AnalyticResult:
             quality_flags=quality_flags,
             lineage=lineage,
             diagnostics=diagnostics,
+            verdict=verdict,
         )
 
     @classmethod

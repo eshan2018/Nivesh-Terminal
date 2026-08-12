@@ -21,7 +21,7 @@ remains where it is — in `returns.py` — and is not duplicated here.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -40,6 +40,9 @@ RETURN_SERIES_VERSION = "return-series/v1"
 
 ALIGNED_MATRIX_ID = "aligned_return_matrix"
 ALIGNED_MATRIX_VERSION = "aligned-return-matrix/v1"
+
+ALIGNED_REFERENCE_ID = "aligned_reference_return_series"
+ALIGNED_REFERENCE_VERSION = "aligned-reference-return-series/v1"
 
 #: The minimum number of overlapping observations before the matrix will report a
 #: window at all.
@@ -186,6 +189,96 @@ def return_series_from(prices: ClosePriceSeries) -> ReturnSeries:
     )
 
 
+def build_aligned_reference_returns(
+    repository: MarketDataRepository,
+    reference_id: InstrumentId,
+    dates: Sequence[datetime],
+    *,
+    as_of: datetime,
+    interval: str = "1d",
+) -> ReturnSeries:
+    """A *reference* instrument's returns, restricted to dates a portfolio also has.
+
+    **Why this exists rather than adding the reference as a matrix column.** The matrix
+    is a portfolio structure: engines iterate its columns against holding weights, so a
+    non-holding column would have to be special-cased inside the very place that mistake
+    would be invisible. A reference is not a holding — it is the thing a portfolio is
+    compared *against* — and an index is not ownable at all
+    (`PORTFOLIO_SUPPORTED_TYPES` excludes it, deliberately).
+
+    **Why the dates are an input.** Comparing two volatilities computed over different
+    windows compares two different questions. The caller supplies the portfolio's own
+    aligned dates and this restricts the reference to exactly them, so the comparison is
+    like-for-like by construction rather than by the caller remembering.
+
+    Intersection, never fill — the same rule the matrix follows. A date the reference
+    lacks is dropped rather than invented, and the shortfall is flagged so a comparison
+    computed over fewer periods than requested says so.
+    """
+    series = build_return_series(repository, reference_id, as_of=as_of, interval=interval)
+    wanted = set(dates)
+    by_date = {point.event_time: point for point in series.points}
+    kept = tuple(by_date[date] for date in sorted(wanted & set(by_date)))
+
+    flags = set(series.quality_flags)
+    if len(kept) < len(wanted):
+        flags.add("reference-window-shortened-by-alignment")
+
+    inputs = {
+        point.event_time: ref
+        for point, ref in zip(series.points, series.lineage.inputs, strict=True)
+    }
+    return ReturnSeries(
+        instrument_id=series.instrument_id,
+        interval=series.interval,
+        as_of=series.as_of,
+        points=kept,
+        quality_flags=tuple(sorted(flags)),
+        reference_version=series.reference_version,
+        lineage=FeatureRef(
+            feature_id=ALIGNED_REFERENCE_ID,
+            feature_version=ALIGNED_REFERENCE_VERSION,
+            inputs=tuple(inputs[point.event_time] for point in kept),
+            parameters=(
+                ("interval", series.interval),
+                ("reference_instrument", reference_id.value),
+            ),
+        ),
+    )
+
+
+def portfolio_matrix_provider(
+    repository: MarketDataRepository,
+) -> Callable[..., AlignedReturnMatrix]:
+    """Bind the repository into the matrix feature (ED-011).
+
+    The repository is held inside the only layer permitted to hold one; callers above
+    receive a function and never see storage.
+    """
+    def provide(
+        instrument_ids: Sequence[InstrumentId],
+        as_of: datetime,
+        restrict_to: Sequence[datetime] | None = None,
+    ) -> AlignedReturnMatrix:
+        return build_aligned_return_matrix(
+            repository, instrument_ids, as_of=as_of, restrict_to=restrict_to
+        )
+
+    return provide
+
+
+def aligned_reference_provider(
+    repository: MarketDataRepository,
+) -> Callable[[InstrumentId, Sequence[datetime], datetime], ReturnSeries]:
+    """Bind the repository into the aligned-reference feature (ED-011)."""
+    def provide(
+        reference_id: InstrumentId, dates: Sequence[datetime], as_of: datetime
+    ) -> ReturnSeries:
+        return build_aligned_reference_returns(repository, reference_id, dates, as_of=as_of)
+
+    return provide
+
+
 def supported_for_portfolio(reference: InstrumentReference) -> bool:
     """Whether this instrument may be held in a portfolio (see the type set above)."""
     return reference.type in PORTFOLIO_SUPPORTED_TYPES
@@ -197,12 +290,20 @@ def build_aligned_return_matrix(
     *,
     as_of: datetime,
     interval: str = "1d",
+    restrict_to: Sequence[datetime] | None = None,
 ) -> AlignedReturnMatrix:
     """Returns for several instruments, restricted to dates every instrument has.
 
     Alignment is an intersection, never a fill. A date missing for one holding is
     dropped for all of them: the alternative is inventing that holding's return, which
     would flow into covariance undetected.
+
+    `restrict_to` narrows the result further, to dates some *other* series also has. It
+    exists because comparing a portfolio against a reference needs the intersection of
+    both, and a reference does not trade on exactly the holdings' calendar — the Nifty 50
+    has four fewer usable days than a four-stock portfolio over a year of real data. A
+    one-directional alignment can therefore never match, which is a comparison over two
+    different windows wearing the appearance of one.
     """
     if not instrument_ids:
         raise ValueError("a portfolio needs at least one instrument")
@@ -216,6 +317,8 @@ def build_aligned_return_matrix(
     common = set(by_instrument[0])
     for mapping in by_instrument[1:]:
         common &= set(mapping)
+    if restrict_to is not None:
+        common &= set(restrict_to)
     dates = tuple(sorted(common))
 
     flags = {flag for s in series for flag in s.quality_flags}

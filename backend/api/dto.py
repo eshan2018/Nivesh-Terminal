@@ -185,3 +185,123 @@ class OneYearReturnResponse(BaseModel):
                 source_refs=[source_ref(key) for key in result.lineage.raw_object_keys()],
             ),
         )
+
+
+# ── Portfolio analysis (M6c) ──────────────────────────────────────────────────
+
+
+class HoldingDTO(BaseModel):
+    """One position in a portfolio the caller is asking about."""
+
+    instrument_id: str = Field(description="Internal instrument id, e.g. `hdfc-bank`.")
+    weight: float = Field(
+        gt=0.0, le=1.0,
+        description="Fraction of the portfolio. Weights must sum to 1 — they are never "
+        "renormalized, because normalizing silently would analyse a portfolio the "
+        "caller did not describe.",
+    )
+
+
+class PortfolioAnalysisRequest(BaseModel):
+    """The portfolio to analyse.
+
+    **A body, not a query string.** Holdings are personal financial data, and a query
+    string lands in server logs, browser history, referrer headers and proxy caches. A
+    body does not. Nothing here is persisted (Product principle 5: stateless before
+    accounts).
+
+    **The reference frame is not a parameter.** Which index the comparison uses, and at
+    what confidence, are server-controlled — otherwise the same screenshot could mean
+    different things to different readers, and no number in it would be verifiable.
+    """
+
+    holdings: list[HoldingDTO] = Field(min_length=1)
+
+
+class JudgementDTO(BaseModel):
+    """A deterministic judgement (ED-021) — the verdict and the quantity behind it.
+
+    The verdict is produced by transparent rules over evidence, never by a model. The
+    value it judged travels with it so a reader can always check one against the other.
+    """
+
+    id: str = Field(description="Stable judgement identifier.")
+    formula_version: str
+    status: ResultStatus
+    verdict: str | None = Field(
+        default=None,
+        description="`HIGHER_REALIZED_VOLATILITY`, `NOT_DISTINGUISHABLE` or "
+        "`LOWER_REALIZED_VOLATILITY`. Null exactly when status is UNAVAILABLE — absent "
+        "evidence cannot support a judgement.",
+    )
+    volatility_ratio: float | None = Field(
+        default=None,
+        description="Portfolio realized volatility divided by the reference's over the "
+        "same dates. 1.2 means the portfolio moved about 1.2x as much.",
+    )
+    unavailable_reason: str | None = None
+    reference_instrument: str = Field(
+        description="What the portfolio was compared against."
+    )
+    confidence_level: str = Field(
+        description="The level at which a difference is called. A stated convention, "
+        "not a property of the data."
+    )
+    claim_scope: str = Field(
+        default=(
+            "This compares realized volatility only. It is not a statement about total "
+            "risk, which also includes concentration, liquidity, drawdown depth and "
+            "single-stock events."
+        ),
+        description="What this judgement does and does not claim.",
+    )
+
+
+class PortfolioAnalysisResponse(BaseModel):
+    """The judgement, the evidence beneath it, and the path back to raw records."""
+
+    judgement: JudgementDTO
+    freshness: FreshnessDTO
+    lineage: list[LineageDTO]
+
+    @classmethod
+    def project(
+        cls, result: AnalyticResult, *, reference_instrument: str, confidence_level: str
+    ) -> PortfolioAnalysisResponse:
+        """Project the judgement envelope onto the wire. Pure translation."""
+        diagnostics = dict(result.diagnostics)
+        return cls(
+            judgement=JudgementDTO(
+                id=result.metric_id,
+                formula_version=result.formula_version,
+                status=result.status,
+                verdict=None if result.verdict is None else str(result.verdict),
+                volatility_ratio=None if result.value is None else result.value.value,
+                unavailable_reason=result.unavailable_reason,
+                reference_instrument=reference_instrument,
+                confidence_level=confidence_level,
+            ),
+            freshness=FreshnessDTO(
+                as_of=result.as_of,
+                computed_at=result.computed_at,
+                quality_flags=list(result.quality_flags),
+                diagnostics=diagnostics,
+            ),
+            lineage=[
+                LineageDTO(
+                    feature_id=feature.feature_id,
+                    feature_version=feature.feature_version,
+                    parameters=dict(feature.parameters),
+                    reference_version=result.reference_version,
+                    contributing=[],
+                    scanned_count=len(feature.inputs),
+                    # De-duplicated: one handle per raw object, not one per observation.
+                    # A 250-bar feature derives from a handful of payloads, and repeating
+                    # each 250 times is the payload growth ED-012 removed.
+                    source_refs=sorted(
+                        {source_ref(ref.provenance.raw_object_key) for ref in feature.inputs}
+                    ),
+                )
+                for feature in result.lineage.features
+            ],
+        )
