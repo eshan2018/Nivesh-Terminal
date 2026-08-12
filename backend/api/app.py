@@ -21,12 +21,17 @@ Collapsing those two into one code would reintroduce exactly the ambiguity the L
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import FastAPI, HTTPException
 
-from backend.api.dto import OneYearReturnResponse
+from backend.api.dto import (
+    OneYearReturnResponse,
+    PortfolioAnalysisRequest,
+    PortfolioAnalysisResponse,
+)
 from backend.domain.model.analytics import AnalyticResult
 from backend.domain.model.instruments import UnknownInstrument, reference_for
 from backend.platform.identifiers import InstrumentId
@@ -43,12 +48,35 @@ type MetricService = Callable[[InstrumentId, datetime], AnalyticResult]
 #: clock is confined to this one boundary.
 type Clock = Callable[[], datetime]
 
+#: What L9 needs from L7 for a portfolio: the holdings and the instant, in; a traced
+#: judgement, out. The reference index and confidence level are *not* parameters — they
+#: are the service's own configuration, so a caller cannot move the goalposts.
+type PortfolioService = Callable[[Sequence[tuple[InstrumentId, float]], datetime], AnalyticResult]
+
+
+@dataclass(frozen=True, slots=True)
+class PortfolioReferenceFrame:
+    """What the portfolio was compared against, and at what confidence.
+
+    Surfaced in every response because a comparison is meaningless without it: the same
+    ratio against a different index, or at a different level, is a different claim.
+    """
+
+    instrument_id: str
+    confidence_level: str
+
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def create_app(metric_service: MetricService, *, clock: Clock = _utc_now) -> FastAPI:
+def create_app(
+    metric_service: MetricService,
+    *,
+    portfolio_service: PortfolioService | None = None,
+    reference_frame: PortfolioReferenceFrame | None = None,
+    clock: Clock = _utc_now,
+) -> FastAPI:
     """Build the ASGI application around an injected metric service.
 
     There is no module-level `app` singleton on purpose: constructing one would force
@@ -87,6 +115,47 @@ def create_app(metric_service: MetricService, *, clock: Clock = _utc_now) -> Fas
         result = metric_service(identifier, clock())
         return OneYearReturnResponse.project(
             result, name=reference.name, instrument_type=str(reference.type)
+        )
+
+    if portfolio_service is None or reference_frame is None:
+        return app
+
+    @app.post(
+        f"/{API_VERSION}/portfolio/analysis",
+        response_model=PortfolioAnalysisResponse,
+        summary="How a portfolio's realized volatility compares with a market reference",
+        response_description=(
+            "The judgement with the ratio behind it, its freshness and its lineage. A "
+            "200 with `status: UNAVAILABLE` means the portfolio is well-formed but no "
+            "comparison could be made; `unavailable_reason` says why."
+        ),
+        responses={404: {"description": "A holding names an instrument that does not exist."}},
+        tags=["portfolio"],
+    )
+    def portfolio_analysis_endpoint(
+        request: PortfolioAnalysisRequest,
+    ) -> PortfolioAnalysisResponse:
+        """Analyse a portfolio supplied in the request body.
+
+        **A POST that reads.** Nothing is created or stored; the body is used because
+        holdings are personal financial data and a query string would leak them into
+        logs, history and caches. Safe to retry: the same body always yields the same
+        response.
+        """
+        holdings: list[tuple[InstrumentId, float]] = []
+        for holding in request.holdings:
+            identifier = InstrumentId(holding.instrument_id)
+            try:
+                reference_for(identifier)
+            except UnknownInstrument as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            holdings.append((identifier, holding.weight))
+
+        result = portfolio_service(holdings, clock())
+        return PortfolioAnalysisResponse.project(
+            result,
+            reference_instrument=reference_frame.instrument_id,
+            confidence_level=reference_frame.confidence_level,
         )
 
     return app

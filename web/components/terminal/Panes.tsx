@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { primaryAnswer, confidenceNote, type Verdict } from "./portfolioAnswer";
 
 function Pane({ id, title, span, children, domId }: {
   id: string; title: string; span: string; children: React.ReactNode; domId?: string;
@@ -398,6 +399,137 @@ export function LiveMetricPane() {
               ))}
               {freshness && Object.entries(freshness.diagnostics).map(([key, value]) => (
                 <div key={key} style={{ color: "#4a6080" }}>{key} · {value}</div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </Pane>
+  );
+}
+
+/* ── Portfolio volatility vs the index (M6c) ────────────────────────────────
+ *
+ * The first pane that answers a question before showing numbers. The order on
+ * screen is the order the investor needs it: the answer, then how confident it is,
+ * then the evidence, then — on request — the work behind it.
+ *
+ * The sentences come from `portfolioAnswer.ts`, which is scanned in CI for advice
+ * and risk vocabulary. This pane must not compose its own investor-facing prose.
+ */
+
+type JudgementPayload = {
+  status?: "UNREACHABLE";
+  reason?: string;
+  judgement?: {
+    status: string;
+    verdict: Verdict | null;
+    volatility_ratio: number | null;
+    unavailable_reason: string | null;
+    reference_instrument: string;
+    confidence_level: string;
+    formula_version: string;
+    claim_scope: string;
+  };
+  freshness?: { as_of: string; diagnostics: Record<string, number>; quality_flags: string[] };
+  lineage?: Array<{ feature_version: string; reference_version: string; scanned_count: number; source_refs: string[] }>;
+};
+
+/* A fixed illustrative portfolio: M6c is stateless — no saved portfolios, no accounts
+ * (Product principle 5). This demonstrates the capability on real ingested data. */
+const DEMO_HOLDINGS = [
+  { instrument_id: "reliance", weight: 0.25 },
+  { instrument_id: "hdfc-bank", weight: 0.25 },
+  { instrument_id: "itc", weight: 0.25 },
+  { instrument_id: "bharti-airtel", weight: 0.25 },
+];
+
+export function PortfolioVolatilityPane() {
+  const [payload, setPayload] = useState<JudgementPayload | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [showWhy, setShowWhy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/portfolio/analysis", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ holdings: DEMO_HOLDINGS }),
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((data: JudgementPayload) => { if (!cancelled) setPayload(data); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const judgement = payload?.judgement;
+  const diagnostics = payload?.freshness?.diagnostics;
+  const ratio = judgement?.volatility_ratio;
+  const verdict = judgement?.verdict ?? null;
+
+  return (
+    <Pane id="10" title="PORTFOLIO · VOLATILITY VS NIFTY 50 — via API" span="s4" domId="pane-portfolio-vol">
+      {failed || payload?.status === "UNREACHABLE" ? (
+        <div className="muted" style={{ fontSize: 12, lineHeight: 1.7 }}>
+          <div style={{ color: "#ffb300" }}>▮ api offline</div>
+          <div>{payload?.reason ?? "api-unreachable"}</div>
+        </div>
+      ) : !payload ? (
+        <div className="muted" style={{ fontSize: 12 }}>$ analysing portfolio …</div>
+      ) : judgement?.status !== "AVAILABLE" || verdict === null || typeof ratio !== "number" ? (
+        /* Absence with a reason — never a zero, never a blank (principle 13). */
+        <div className="muted" style={{ fontSize: 12, lineHeight: 1.7 }}>
+          <div style={{ color: "#ffb300" }}>▮ no comparison available</div>
+          <div>{judgement?.unavailable_reason ?? "unknown"}</div>
+        </div>
+      ) : (
+        <>
+          {/* THE ANSWER — before any metric. */}
+          <div style={{ fontSize: 12.5, lineHeight: 1.75, color: "#cfe0f5" }}>
+            {primaryAnswer(verdict, ratio, diagnostics?.portfolio_observations ?? 0)}
+          </div>
+
+          {/* Confidence, never separated from the verdict. */}
+          <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.7 }}>
+            {confidenceNote(
+              verdict,
+              diagnostics?.volatility_ratio_ci_low ?? 0,
+              diagnostics?.volatility_ratio_ci_high ?? 0,
+              judgement.confidence_level,
+            )}
+          </div>
+
+          {/* What the judgement does not claim. */}
+          <div style={{ fontSize: 10.5, marginTop: 8, color: "#4a6080", lineHeight: 1.7 }}>
+            {judgement.claim_scope}
+          </div>
+
+          <button
+            onClick={() => setShowWhy((v) => !v)}
+            style={{
+              background: "none", border: "1px solid #24354d", color: "#8da4c4",
+              fontFamily: "inherit", fontSize: 11, padding: "2px 8px",
+              marginTop: 10, cursor: "pointer",
+            }}
+          >
+            {showWhy ? "hide the numbers" : "show the numbers"}
+          </button>
+
+          {showWhy && (
+            /* Technical metrics on demand — kept, never removed, never first. */
+            <div className="muted" style={{ fontSize: 10.5, marginTop: 8, lineHeight: 1.75 }}>
+              <div>formula · {judgement.formula_version}</div>
+              <div>compared against · {judgement.reference_instrument}</div>
+              {diagnostics && Object.entries(diagnostics).map(([key, value]) => (
+                <div key={key} style={{ color: "#4a6080" }}>
+                  {key} · {typeof value === "number" ? value.toFixed(4) : value}
+                </div>
+              ))}
+              {payload.lineage?.map((entry) => (
+                <div key={entry.feature_version} style={{ color: "#4a6080" }}>
+                  ↳ {entry.feature_version} · {entry.scanned_count} obs · {entry.source_refs.length} src
+                </div>
               ))}
             </div>
           )}

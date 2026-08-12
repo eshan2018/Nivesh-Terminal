@@ -297,9 +297,73 @@ not advice") and the raw material for the explainability "why?" panel.
 | **Procedure** | Property and parity tests written and green **first** (`make check` at 282 tests, no golden present); engine then cross-checked against the independent implementation on the golden fixture — **relative difference 0.000e+00**; only then was the golden written. |
 | **Change rule** | Changing it requires a `formula_version` bump and review. |
 
+### aligned_reference_return_series · v1
+
+- **Question it serves:** what did the market do on *exactly* the days this portfolio
+  traded?
+- **Definition:** the reference instrument's periodic simple returns, restricted to a
+  supplied set of dates (a portfolio's own aligned dates).
+- **Inputs:** `return_series/v1` for the reference instrument; the portfolio's aligned
+  dates.
+- **Method:** intersection, never fill. A date the reference lacks is dropped rather than
+  invented, and a shortfall raises `reference-window-shortened-by-alignment`.
+- **Assumptions:** the reference is priced on the same calendar as the holdings. Where it
+  is not, the intersection shrinks and says so.
+- **Limitations:** the reference is a statistical benchmark, not a holding. An index is
+  not ownable, and this feature never treats it as one.
+- **Why it exists separately:** adding the reference as a column of the portfolio matrix
+  would put a non-holding into a structure whose columns are iterated against weights —
+  a conflation that would be invisible exactly where it would do damage.
+
+### portfolio-volatility-vs-reference · v1
+
+- **Investor question:** *"How did my portfolio's realized volatility compare with the
+  Nifty 50 over the same period?"*
+- **Definition:** the ratio of the portfolio's annualized realized volatility to the
+  reference's, computed over identical dates, plus a verdict on whether the two are
+  statistically distinguishable.
+- **Inputs:** `aligned_return_matrix/v1` (portfolio), `aligned_reference_return_series/v1`
+  (reference), holding weights.
+- **Method:**
+  `R = σ_portfolio / σ_reference`;
+  `z = ln(R²) / SE` with `SE = √(2/(n_p−1) + 2/(n_r−1))`;
+  `|z| ≥ 1.96` calls a direction, otherwise `NOT_DISTINGUISHABLE`. The 95% interval is
+  reported on the volatility-ratio scale.
+- **Verdicts:** `HIGHER_REALIZED_VOLATILITY` · `NOT_DISTINGUISHABLE` ·
+  `LOWER_REALIZED_VOLATILITY` · absent (`UNAVAILABLE`, with a reason).
+- **Reference frame:** empirical — the market's own realized volatility over the same
+  window, not a band chosen by us. **Server-controlled:** the index and the confidence
+  level are not request parameters, so the same figure means the same thing to every
+  reader.
+- **Assumptions and their honesty:**
+  - **The only convention is the 95% level.** The boundary itself — a ratio of 1, equal
+    volatility — is definitional, not chosen.
+  - **The test assumes independent samples** while a portfolio of index constituents is
+    strongly correlated with the index. Positive correlation makes the true standard
+    error *smaller*, so this **understates** significance and errs toward
+    `NOT_DISTINGUISHABLE`. The exact paired test (Pitman–Morgan) is a candidate
+    refinement, not adopted in v1.
+  - **`NOT_DISTINGUISHABLE` is not "similar".** Failing to detect a difference is not
+    evidence of equality; the band holds both genuinely-alike portfolios and ones where
+    the window is too short to separate them.
+- **Limitations — what this does NOT claim:** it compares **realized volatility only**.
+  It is not a statement about total risk, which also includes concentration, liquidity,
+  drawdown depth, single-stock events and credit. "Moved more than the index" is a
+  measurement; "riskier than the index" is a claim this evidence cannot support.
+- **Why this judgement and not "were you compensated for your risk?"** That candidate was
+  tested against 411 real equal-weight portfolios over ~1 year of daily data and returned
+  `INCONCLUSIVE` in **99.8%** of cases at 95% confidence (median |t| = 0.23) — honest and
+  effectively constant. A sign-only version would have labelled 64% "not compensated",
+  putting confident labels on differences indistinguishable from noise. First moments are
+  not estimable from one year of daily data; second moments are, which is why the
+  volatility comparison is decidable (measured 72% decisive on the same portfolios) where
+  the return comparison is not. Revisit condition, computable rather than vague: decidable
+  at roughly `T ≥ (1.96/|Sharpe|)²` years — ~73 years at the observed median.
+
 ## Change log
 | Date | Change |
 |------|--------|
+| 2026-08-12 | **`aligned_reference_return_series/v1` and `portfolio-volatility-vs-reference/v1` added** during M6c — the platform's first deterministic judgement. The compensation judgement it replaced was dropped on empirical evidence (99.8% inconclusive over 411 real portfolios), recorded in the entry so the reasoning outlives the decision. |
 | 2026-07-17 | Catalog established (M1, Phase 0 convention). No entries yet; first entry lands in M3. |
 | 2026-07-18 | **First entries authored (M3):** `close_price_series · v1` (L6, the C3 seam) and `one-year-total-return · v1` (L7). Golden-master seeding record added after property + parity tests passed. |
 | 2026-07-22 | **M6a entries added:** `return_series · v1`, `aligned_return_matrix · v1`, `portfolio-risk-return · v1`. Entry template gains a mandatory **Investor question** field — Nivesh Terminal ships portfolio intelligence, not a formula library, so an engine that answers no investor question does not ship. |

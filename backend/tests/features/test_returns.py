@@ -28,6 +28,7 @@ from backend.features.returns import (
     close_price_series_provider,
     to_float,
 )
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.platform.identifiers import InstrumentId
 
 APPLE = InstrumentId("apple")
@@ -43,6 +44,7 @@ def _provenance(reference_version: str = REFERENCE_VERSION, key: str = "raw/a.js
         provider="yfinance",
         raw_contract_version="yfinance-ohlcv/v1",
         reference_version=reference_version,
+        validation_version=VALIDATION_VERSION,
     )
 
 

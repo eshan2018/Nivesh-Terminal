@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS {OBSERVATIONS_TABLE} (
     provider             TEXT NOT NULL,
     raw_contract_version TEXT NOT NULL,
     reference_version    TEXT NOT NULL,
+    validation_version   TEXT NOT NULL,
     PRIMARY KEY (instrument_id, interval, event_time, knowledge_time),
     CHECK (
         (value_kind = 'INDEX_LEVEL' AND currency IS NULL)
@@ -62,8 +63,9 @@ CREATE TABLE IF NOT EXISTS {QUARANTINE_TABLE} (
     reasons           TEXT NOT NULL,   -- JSON array
     payload_json      TEXT NOT NULL,   -- the rejected bar, for data-ops triage
     quarantined_at    TEXT NOT NULL,   -- ISO-8601, UTC
-    provider          TEXT NOT NULL,
-    reference_version TEXT NOT NULL,
+    provider           TEXT NOT NULL,
+    reference_version  TEXT NOT NULL,
+    validation_version TEXT NOT NULL,
     PRIMARY KEY (instrument_id, raw_object_key, raw_timestamp)
 );
 """

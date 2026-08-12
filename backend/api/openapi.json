@@ -52,6 +52,29 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HoldingDTO": {
+        "description": "One position in a portfolio the caller is asking about.",
+        "properties": {
+          "instrument_id": {
+            "description": "Internal instrument id, e.g. `hdfc-bank`.",
+            "title": "Instrument Id",
+            "type": "string"
+          },
+          "weight": {
+            "description": "Fraction of the portfolio. Weights must sum to 1 \u2014 they are never renormalized, because normalizing silently would analyse a portfolio the caller did not describe.",
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "weight"
+        ],
+        "title": "HoldingDTO",
+        "type": "object"
+      },
       "InstrumentDTO": {
         "description": "The instrument the metric describes, in canonical terms only.",
         "properties": {
@@ -76,6 +99,83 @@
           "type"
         ],
         "title": "InstrumentDTO",
+        "type": "object"
+      },
+      "JudgementDTO": {
+        "description": "A deterministic judgement (ED-021) \u2014 the verdict and the quantity behind it.\n\nThe verdict is produced by transparent rules over evidence, never by a model. The\nvalue it judged travels with it so a reader can always check one against the other.",
+        "properties": {
+          "claim_scope": {
+            "default": "This compares realized volatility only. It is not a statement about total risk, which also includes concentration, liquidity, drawdown depth and single-stock events.",
+            "description": "What this judgement does and does not claim.",
+            "title": "Claim Scope",
+            "type": "string"
+          },
+          "confidence_level": {
+            "description": "The level at which a difference is called. A stated convention, not a property of the data.",
+            "title": "Confidence Level",
+            "type": "string"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "id": {
+            "description": "Stable judgement identifier.",
+            "title": "Id",
+            "type": "string"
+          },
+          "reference_instrument": {
+            "description": "What the portfolio was compared against.",
+            "title": "Reference Instrument",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResultStatus"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`HIGHER_REALIZED_VOLATILITY`, `NOT_DISTINGUISHABLE` or `LOWER_REALIZED_VOLATILITY`. Null exactly when status is UNAVAILABLE \u2014 absent evidence cannot support a judgement.",
+            "title": "Verdict"
+          },
+          "volatility_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Portfolio realized volatility divided by the reference's over the same dates. 1.2 means the portfolio moved about 1.2x as much.",
+            "title": "Volatility Ratio"
+          }
+        },
+        "required": [
+          "id",
+          "formula_version",
+          "status",
+          "reference_instrument",
+          "confidence_level"
+        ],
+        "title": "JudgementDTO",
         "type": "object"
       },
       "LineageDTO": {
@@ -241,6 +341,49 @@
         "title": "OneYearReturnResponse",
         "type": "object"
       },
+      "PortfolioAnalysisRequest": {
+        "description": "The portfolio to analyse.\n\n**A body, not a query string.** Holdings are personal financial data, and a query\nstring lands in server logs, browser history, referrer headers and proxy caches. A\nbody does not. Nothing here is persisted (Product principle 5: stateless before\naccounts).\n\n**The reference frame is not a parameter.** Which index the comparison uses, and at\nwhat confidence, are server-controlled \u2014 otherwise the same screenshot could mean\ndifferent things to different readers, and no number in it would be verifiable.",
+        "properties": {
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/HoldingDTO"
+            },
+            "minItems": 1,
+            "title": "Holdings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "holdings"
+        ],
+        "title": "PortfolioAnalysisRequest",
+        "type": "object"
+      },
+      "PortfolioAnalysisResponse": {
+        "description": "The judgement, the evidence beneath it, and the path back to raw records.",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/FreshnessDTO"
+          },
+          "judgement": {
+            "$ref": "#/components/schemas/JudgementDTO"
+          },
+          "lineage": {
+            "items": {
+              "$ref": "#/components/schemas/LineageDTO"
+            },
+            "title": "Lineage",
+            "type": "array"
+          }
+        },
+        "required": [
+          "judgement",
+          "freshness",
+          "lineage"
+        ],
+        "title": "PortfolioAnalysisResponse",
+        "type": "object"
+      },
       "ResultStatus": {
         "description": "Whether an analytic produced a value or declined to.",
         "enum": [
@@ -334,6 +477,51 @@
         "summary": "One-year total return for an instrument",
         "tags": [
           "metrics"
+        ]
+      }
+    },
+    "/v1/portfolio/analysis": {
+      "post": {
+        "description": "Analyse a portfolio supplied in the request body.\n\n**A POST that reads.** Nothing is created or stored; the body is used because\nholdings are personal financial data and a query string would leak them into\nlogs, history and caches. Safe to retry: the same body always yields the same\nresponse.",
+        "operationId": "portfolio_analysis_endpoint_v1_portfolio_analysis_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAnalysisResponse"
+                }
+              }
+            },
+            "description": "The judgement with the ratio behind it, its freshness and its lineage. A 200 with `status: UNAVAILABLE` means the portfolio is well-formed but no comparison could be made; `unavailable_reason` says why."
+          },
+          "404": {
+            "description": "A holding names an instrument that does not exist."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "How a portfolio's realized volatility compares with a market reference",
+        "tags": [
+          "portfolio"
         ]
       }
     }

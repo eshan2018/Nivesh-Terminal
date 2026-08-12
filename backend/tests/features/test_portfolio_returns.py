@@ -29,6 +29,7 @@ from backend.features.portfolio_returns import (
     build_return_series,
     supported_for_portfolio,
 )
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.platform.identifiers import InstrumentId
 
 RELIANCE = InstrumentId("reliance")
@@ -40,6 +41,7 @@ PROVENANCE = Provenance(
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
     reference_version=REFERENCE_VERSION,
+    validation_version=VALIDATION_VERSION,
 )
 
 

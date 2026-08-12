@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from backend.api.app import create_app
+from backend.api.app import PortfolioReferenceFrame, create_app
 from backend.domain.model.analytics import AnalyticResult
 from backend.platform.identifiers import InstrumentId
 
@@ -29,9 +29,26 @@ def _unused_service(instrument_id: InstrumentId, now: datetime) -> AnalyticResul
     raise AssertionError("the OpenAPI schema must not invoke the metric service")
 
 
+def _unused_portfolio_service(holdings: Any, now: datetime) -> AnalyticResult:
+    """Never called, and supplied for a reason.
+
+    The portfolio route only registers when a service is injected, so exporting without
+    one would silently publish a contract missing an endpoint the API actually serves —
+    the exact drift this artifact exists to prevent.
+    """
+    raise AssertionError("the OpenAPI schema must not invoke the portfolio service")
+
+
 def current_spec() -> dict[str, Any]:
     """The spec the current code describes."""
-    app = create_app(_unused_service, clock=lambda: datetime(1970, 1, 1, tzinfo=UTC))
+    app = create_app(
+        _unused_service,
+        portfolio_service=_unused_portfolio_service,
+        reference_frame=PortfolioReferenceFrame(
+            instrument_id="nifty-50", confidence_level="95%"
+        ),
+        clock=lambda: datetime(1970, 1, 1, tzinfo=UTC),
+    )
     return app.openapi()
 
 

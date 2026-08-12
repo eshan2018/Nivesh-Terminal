@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 from backend.domain.market_data.sqlite_repository import SqliteMarketDataRepository
 from backend.domain.model.observations import AuthorityTier, PriceObservation, Provenance
 from backend.domain.model.quantities import Currency, Money
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.main import (
     DATABASE_ENV,
     DEFAULT_DATABASE,
@@ -42,6 +43,7 @@ PROVENANCE = Provenance(
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
     reference_version="skeleton-reference/v1",
+    validation_version=VALIDATION_VERSION,
 )
 
 

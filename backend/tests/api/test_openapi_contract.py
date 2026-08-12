@@ -23,6 +23,7 @@ from pathlib import Path
 from backend.api.export_openapi import SPEC_PATH, current_spec
 
 ROUTE = "/v1/instruments/{instrument_id}/metrics/one-year-return"
+PORTFOLIO_ROUTE = "/v1/portfolio/analysis"
 
 
 def test_the_committed_spec_matches_the_code() -> None:
@@ -33,9 +34,27 @@ def test_the_committed_spec_matches_the_code() -> None:
     )
 
 
-def test_the_contract_exposes_exactly_one_route() -> None:
-    """The Phase 0.5 fence, asserted rather than trusted."""
-    assert list(current_spec()["paths"]) == [ROUTE]
+def test_the_contract_exposes_exactly_the_routes_we_intend() -> None:
+    """Asserted rather than trusted — an endpoint must never appear by accident."""
+    assert set(current_spec()["paths"]) == {ROUTE, PORTFOLIO_ROUTE}
+
+
+def test_the_portfolio_route_is_a_post_that_takes_a_body() -> None:
+    """Holdings are personal financial data: a body, never a query string."""
+    operations = current_spec()["paths"][PORTFOLIO_ROUTE]
+
+    assert set(operations) == {"post"}
+    assert "requestBody" in operations["post"]
+    assert not operations["post"].get("parameters")
+
+
+def test_the_published_judgement_shape_carries_its_own_caveats() -> None:
+    """A verdict without its frame and its scope is not publishable."""
+    schema = current_spec()["components"]["schemas"]["JudgementDTO"]["properties"]
+
+    for field in ("verdict", "volatility_ratio", "reference_instrument",
+                  "confidence_level", "claim_scope", "unavailable_reason"):
+        assert field in schema, f"the contract omits {field}"
 
 
 def test_the_route_documents_both_outcomes() -> None:
@@ -73,11 +92,23 @@ def test_export_writes_what_the_test_compares(tmp_path: Path) -> None:
 
 
 def test_the_spec_does_not_depend_on_the_injected_service() -> None:
-    """The contract describes the shape, not the data behind it."""
-    from backend.api.app import create_app
+    """The contract describes the shape, not the data behind it.
+
+    Different implementations, same service *set*: a route that only registers when a
+    service is supplied would otherwise make this test pass by comparing an app that has
+    fewer endpoints, which is the drift the artifact exists to catch.
+    """
+    from backend.api.app import PortfolioReferenceFrame, create_app
 
     def refusing_service(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("the spec must not invoke the service")
 
-    app = create_app(refusing_service, clock=lambda: datetime(2025, 1, 1, tzinfo=UTC))  # type: ignore[arg-type]
+    app = create_app(
+        refusing_service,  # type: ignore[arg-type]
+        portfolio_service=refusing_service,  # type: ignore[arg-type]
+        reference_frame=PortfolioReferenceFrame(
+            instrument_id="nifty-50", confidence_level="95%"
+        ),
+        clock=lambda: datetime(2025, 1, 1, tzinfo=UTC),
+    )
     assert app.openapi()["paths"].keys() == current_spec()["paths"].keys()

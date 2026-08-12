@@ -53,6 +53,9 @@ def normalize_price_history(
         provider=response.fetch.provider,
         raw_contract_version=response.fetch.raw_contract_version,
         reference_version=reference_version,
+        # Taken from the outcome rather than a parameter: the gate that ran is the only
+        # honest source for which rules ran.
+        validation_version=outcome.validation_version,
     )
 
     observations = [
@@ -97,6 +100,9 @@ def to_quarantine_records(
         provider=response.fetch.provider,
         raw_contract_version=response.fetch.raw_contract_version,
         reference_version=reference_version,
+        # Taken from the outcome rather than a parameter: the gate that ran is the only
+        # honest source for which rules ran.
+        validation_version=outcome.validation_version,
     )
     return tuple(
         QuarantineRecord(

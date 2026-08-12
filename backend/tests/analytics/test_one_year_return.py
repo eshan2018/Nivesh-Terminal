@@ -39,6 +39,7 @@ from backend.domain.model.observations import (
 )
 from backend.domain.model.quantities import Currency, IndexLevel, Money, Ratio
 from backend.features.returns import ClosePriceSeries, build_close_price_series
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.platform.identifiers import InstrumentId
 from backend.tests.analytics.fakes import FakeRepository
 from backend.tests.analytics.reference_implementation import (
@@ -56,6 +57,7 @@ PROVENANCE = Provenance(
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
     reference_version=REFERENCE_VERSION,
+    validation_version=VALIDATION_VERSION,
 )
 
 
@@ -372,6 +374,7 @@ def test_feature_quality_flags_reach_the_result() -> None:
                 provider="yfinance",
                 raw_contract_version="yfinance-ohlcv/v1",
                 reference_version="skeleton-reference/v0",
+                validation_version=VALIDATION_VERSION,
             ),
         )
         for o in observations

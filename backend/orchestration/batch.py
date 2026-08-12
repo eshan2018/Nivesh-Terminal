@@ -54,6 +54,7 @@ from backend.domain.model.instruments import (
     reference_for,
 )
 from backend.ingestion.raw_store import RawStore, RawStoreError
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.orchestration.pipeline import PIPELINE_VERSION, run_ingest
 from backend.platform.identifiers import InstrumentId
 from backend.providers.ports.errors import ProviderError
@@ -140,6 +141,10 @@ class BatchManifest:
     batch_id: str
     pipeline_version: str
     reference_version: str
+    #: Recorded alongside the reference version, not instead of it: a manifest that
+    #: pinned one policy version and not the other would make an incomplete claim about
+    #: what produced the run (ED-020).
+    validation_version: str
     requested_at: datetime
     interval: str
     lookback_days: int
@@ -170,6 +175,7 @@ class BatchManifest:
                 "batch_id": self.batch_id,
                 "pipeline_version": self.pipeline_version,
                 "reference_version": self.reference_version,
+                "validation_version": self.validation_version,
                 "requested_at": self.requested_at.isoformat(),
                 "interval": self.interval,
                 "lookback_days": self.lookback_days,
@@ -225,6 +231,7 @@ def run_ingest_batch(
         batch_id=f"{PIPELINE_VERSION}:batch:{requested_at.isoformat()}",
         pipeline_version=PIPELINE_VERSION,
         reference_version=REFERENCE_VERSION,
+        validation_version=VALIDATION_VERSION,
         requested_at=requested_at,
         interval=interval,
         lookback_days=lookback_days,

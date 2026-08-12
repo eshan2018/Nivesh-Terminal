@@ -56,7 +56,7 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 3. **The Configuration Source is authoritative for reproducibility.** The prose here explains
    *why*; the config file is the *what* that CI/deploys actually consume.
 4. **No duplication with ADRs.** An ED cites the ADR it realizes; it does not re-decide it.
-5. **IDs are permanent and never reused;** next id is **ED-020**.
+5. **IDs are permanent and never reused;** next id is **ED-022**.
 
 ---
 
@@ -82,6 +82,8 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | [ED-017](#ed-017--canonical-instrument-identity--mic-exchange-isin-and-aliases) | Canonical instrument identity — MIC exchange, ISIN, aliases | Accepted | doc 04, ADR-0006, doc 06 |
 | [ED-018](#ed-018--reference-data-as-a-committed-seed-file) | Reference data as a committed seed file | Accepted | doc 04, doc 07, doc 15 |
 | [ED-019](#ed-019--execution-outcomes-for-batch-ingestion) | Execution outcomes for batch ingestion | Accepted | doc 05, doc 06, doc 16 |
+| [ED-020](#ed-020--validation-rule-set-identity) | Validation rule-set identity | Accepted | doc 05, doc 07, ADR-0017 |
+| [ED-021](#ed-021--deterministic-judgements-on-the-analyticresult-envelope) | Deterministic judgements on the `AnalyticResult` envelope | Accepted | doc 04, doc 08, ADR-0014 |
 
 ---
 
@@ -603,6 +605,114 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
   [doc 16](../architecture/16-data-orchestration-and-freshness.md),
   [ADR-0005](../architecture/18-architecture-decision-records.md#adr-0005--provider-abstraction-via-portsadapters).
 
+### ED-020 · Validation rule-set identity
+- **Status:** Accepted (2026-08-10) — recorded with the code it governs.
+- **Context:** The M6b-2 NaN fix changed what the gate accepts. The same raw payload
+  therefore replayed to an **accepted** observation before it and a **quarantined** one
+  after — while `config_version` (`REFERENCE_VERSION + raw_contract_version`) and every
+  stored version stayed identical. Two runs over the same raw object produced different
+  canonical data and nothing in the record said why.
+  [ADR-0017](../architecture/18-architecture-decision-records.md#adr-0017--first-class-lineage-with-three-guarantee-tiers)'s
+  *bit-reproducible* tier claims reproducibility given pinned versions;
+  [doc 05](../architecture/05-market-data-architecture.md) stage 4 requires a run to record
+  the versions of the **policies** it used; [doc 07](../architecture/07-database-design.md)
+  requires lineage to answer "which reference-data/policy snapshot produced this" *per
+  value*. The validation rule set is a policy, and it was in none of them.
+- **Decision.** The gate declares `VALIDATION_VERSION` and **stamps it onto its own
+  `ValidationOutcome`**. From there it travels: onto `Provenance` (required, not
+  defaulted) for accepted *and* quarantined records; into both tables as an additive
+  `NOT NULL` column; into the DAG's `config_version`, so a rule change yields different
+  task keys; and onto `PipelineRun` and `BatchManifest`.
+- **Why the gate stamps rather than the caller supplies.** A version supplied as a
+  parameter records what is *currently configured*; a version stamped by the execution
+  records what actually *ran*. Only the second is a lineage claim, and a run can no
+  longer name a rule set it did not execute.
+- **What this deliberately does NOT do.** Nothing honours a superseded rule set on
+  replay. A replay applies today's rules and says so; the divergence becomes visible and
+  attributable rather than silent. **That boundary is what keeps this an ED.** Deciding
+  that replay must reproduce *historical* rule behaviour would need a versioned rule
+  registry and would change what ADR-0017's bit-reproducible tier claims — an
+  architectural decision requiring **ADR-0021**, which remains unused.
+- **Alternatives Considered:** *Run-level only (`PipelineRun`/`config_version`, no
+  field on the fact)* — smaller, but doc 07 asks the question *per value*, and a stored
+  observation could not then say which rules vetted it; the existing `reference_version`
+  precedent is fact-level for exactly this reason. *Default the field* — would let a fact
+  exist claiming no rule identity, which is the hole being closed. *Version the rules and
+  execute historical sets on replay* — the ADR-scale option, deferred above.
+- **Consequences.** A rule change is now visible in the data, in the task key and in the
+  run record. Reproducibility is unchanged and re-verified: `make recompute` remains
+  byte-identical, because a rebuild and its original both stamp the same current version.
+  **On the two new `NOT NULL` columns.** No migration mechanism is required at this
+  stage and none is added: the SQLite store is a **disposable development backend** —
+  recreated from `schema.py` on demand, gitignored, holding no data of record — so
+  "migrating" it is deleting a file. The production PostgreSQL schema does not yet exist;
+  **when production schema and migrations are introduced, they must include these two
+  columns as required**, exactly as they must include `reference_version`. That is a
+  normal input to schema creation, not an outstanding defect.
+  **The residual risk that is real:** the constant is a human commitment, so a rule
+  edited without a bump would otherwise still lie. `test_validation_behaviour_fingerprint.py`
+  removes that: it pins the gate's observable verdicts — including each threshold's
+  boundary value — so a policy change fails the suite until the version is bumped and the
+  fingerprint updated together. Verified by mutation: moving `JUMP_THRESHOLD` from 0.5 to
+  0.4 passed every other test in the suite and fails this one.
+- **Configuration Source:** `backend/ingestion/validation.py` (`VALIDATION_VERSION`,
+  `ValidationOutcome.validation_version`), `backend/domain/model/observations.py`
+  (`Provenance.validation_version`), `backend/domain/market_data/schema.py`,
+  `backend/orchestration/pipeline.py` (`config_version`, `PipelineRun`),
+  `backend/orchestration/batch.py` (`BatchManifest`).
+- **Related Architecture Documents:** [doc 05](../architecture/05-market-data-architecture.md),
+  [doc 07](../architecture/07-database-design.md), [doc 16](../architecture/16-data-orchestration-and-freshness.md),
+  [ADR-0017](../architecture/18-architecture-decision-records.md#adr-0017--first-class-lineage-with-three-guarantee-tiers).
+
+### ED-021 · Deterministic judgements on the `AnalyticResult` envelope
+- **Status:** Accepted (2026-08-12) — decided before the code that depends on it.
+- **Context:** M6c ships the platform's first **deterministic judgement**: a categorical
+  verdict produced by transparent rules over evidence. `AnalyticValue` is
+  `Ratio | Money | IndexLevel` — every member numeric — so a judgement had nowhere
+  type-legal to put its answer, while [doc 08](../architecture/08-analytics-framework.md)
+  requires every engine to emit an `AnalyticResult` and "no engine returns a bare number".
+- **Decision.** Add a **`Verdict` enum and an additive `verdict` field on the envelope**.
+  `AnalyticValue` is **not** widened: the judgement's `value` carries the quantity it
+  judged (the volatility ratio), and the verdict travels beside it.
+- **Why not a sibling `JudgementResult`.** [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines)
+  states every analytics engine obeys **one contract** with a traced `AnalyticResult`
+  envelope, and doc 04 owns that envelope as a canonical entity which doc 08 "may not
+  alter". A second envelope emitted by an L7 engine contradicts the first and adds a
+  canonical entity to the second — **ADR-0021 territory, deliberately not spent.**
+- **Why not widen `AnalyticValue`.** Contamination is preventable there, but preventable
+  is weaker than absent: with a numeric-only union, no consumer can ever receive a
+  categorical where it expects a number, and `MetricDTO.value` stays `float | None`
+  in-process as well as on the wire. It also keeps `AVAILABLE ⇒ value present`
+  substantive — a judgement still reports the quantity it judged, rather than a verdict
+  standing in for a value that does not exist.
+- **The clause this spends.** ADR-0014's stated revisit condition: *"If the envelope
+  proves insufficient for a new analytic class, extend it additively."* A judgement is a
+  new analytic class. This is the fourth use of that clause after
+  [ED-012](#ed-012--lineage-granularity-in-a-served-result),
+  [ED-013](#ed-013--typed-diagnostics-on-the-analyticresult-envelope) and
+  [ED-016](#ed-016--engine-parameters-recorded-in-the-lineage-handle), under the same
+  classification. **ADR-0021 remains unused.**
+- **Alternatives Considered:** *sibling envelope* — see above, ADR-scale. *Widen
+  `AnalyticValue`* — see above. *Verdict as a quality flag or diagnostic* — flags are
+  opaque tags and diagnostics are typed `float`; either would collapse Evidence and
+  Judgement into one undifferentiated envelope, which is exactly what the six-stage
+  intelligence model forbids.
+- **Consequences.** One envelope, one lineage mechanism, doc 08's uniform contract holds
+  literally, and "delete scoring is a no-op" ([ADR-0015](../architecture/18-architecture-decision-records.md#adr-0015--scoring-is-one-module-not-the-core))
+  stays true — deleting a judgement engine removes an engine, not an entity. The envelope
+  **refuses an `UNAVAILABLE` result that carries a verdict**, so absent evidence cannot
+  become a directional answer by an engine author forgetting to clear a field.
+  **Recorded limitation:** this works because this judgement has a natural numeric
+  carrier. A future judgement with no numeric value would meet `AVAILABLE ⇒ value present`
+  with nothing to supply — that is the concrete trigger to revisit the envelope, and it is
+  not solved here.
+- **Configuration Source:** `backend/domain/model/analytics.py` (`Verdict`,
+  `AnalyticResult.verdict`), `backend/analytics/portfolio_volatility_vs_reference.py`
+  (first producer), `backend/api/dto.py` (`JudgementDTO`).
+- **Related Architecture Documents:** [doc 04](../architecture/04-canonical-domain-model.md),
+  [doc 08](../architecture/08-analytics-framework.md),
+  [ADR-0014](../architecture/18-architecture-decision-records.md#adr-0014--analytics-as-uniform-versioned-traced-engines).
+
 ---
 
 ## Change log
@@ -618,6 +728,8 @@ architectural change, that is a *new ADR*, and the ED is marked `Superseded`/`De
 | 2026-07-22 | **ED-014 recorded** during M4b: the strangler seam is a same-origin Next.js proxy, so no CORS middleware is added to the API. `backend/main.py` established as the ED-011 composition root and declared in `architecture_map.py`, with a guardrail test asserting it is the only unlayered module under `backend/`. | The dependency lint skips modules belonging to no layer, so an undeclared entry point would have been silently exempt from every rule. Declaring it turns a blind spot into a checked invariant. Next id: ED-015. |
 | 2026-07-22 | **ED-015 recorded** during M5: the skeleton's DAG is a stdlib task graph; ED-005 (Dagster) stays `Proposed` and no orchestration framework is introduced. | Doc 16 owns the orchestration *model* and defers the *product* to doc 12, banning ad-hoc cron only above the walking skeleton. The model's requirements — declared order, keyed idempotent tasks, runs as lineage events — are met without a framework. The capabilities that will force the product (scheduling, retries, backfill, invalidation cascades) are enumerated in the ED so the trigger is explicit. Next id: ED-016. |
 | 2026-07-22 | **ED-016 recorded** during M6a (Phase 1): engine invocation parameters are pinned in the lineage handle. | The first parameterized engine (`portfolio_risk_return`) exposed that a result recorded its inputs but not its invocation — the same holdings under different weights were indistinguishable in the envelope, so the result was not reproducible from it. Additive, under the ADR-0014 clause and the ED classification already set for ED-012/013. Next id: ED-017. |
+| 2026-08-12 | **ED-021 recorded** ahead of M6c's judgement engine: a `Verdict` enum plus an additive `verdict` field on the envelope; `AnalyticValue` stays numeric. | A sibling `JudgementResult` would contradict ADR-0014's one-contract decision and add a canonical entity to doc 04 — an ADR. Widening `AnalyticValue` was available but weaker: a numeric-only union makes contamination absent rather than merely prevented, and keeps `AVAILABLE ⇒ value present` meaningful. ADR-0014's own revisit clause prescribes additive extension, spent here for the fourth time. Next id: ED-022. |
+| 2026-08-10 | **ED-020 recorded** ahead of M6c: the validation rule set gains an identity that travels onto every fact, both tables, the DAG task key and the run record. | The M6b-2 NaN fix showed the same raw payload producing different canonical data with every recorded version unchanged. Doc 05 stage 4, doc 07's per-value lineage question and ADR-0017's bit-reproducible tier all already required a policy version; it simply did not exist. Recording identity is additive and stays an ED; *honouring* superseded rules on replay would need a rule registry and would redefine ADR-0017's tier — an ADR deliberately not spent. Next id: ED-021. |
 | 2026-07-30 | **ED-019 recorded** during M6b-2: the adapter reports only provider observations; orchestration combines them with reference data and request context into an execution outcome, with `EMPTY_EXPECTED` distinguished from `EMPTY_UNEXPECTED`. | Doc 05 finding 5 deferred this decision to M6b-2 by name. The adapter cannot distinguish an unknown symbol from a legitimately empty window, so raising there would assert knowledge it does not have; only orchestration sees all three inputs. Fail-closed already held — the gap was that a run reported success having ingested nothing. Next id: ED-020. |
 | 2026-07-30 | **ED-018 recorded** during M6b-1: reference state becomes a committed JSON seed loaded at import, replacing Python dict literals; `reference_version` moves into the seed; the goldens stop freezing it. | Doc 15's sequencing principle 4 requires that widening the universe never be a code change, and doc 04 calls universes "data, editable without code" — both were false while the registry was a literal. Doc 07's reference tables remain the deployed home; a seed file is the ED-003/ED-004 pattern applied again (honour the model now, stand up the infrastructure where it is first needed). Next id: ED-019. |
 | 2026-07-24 | **ED-017 recorded** ahead of M6b-1: the canonical instrument reference gains MIC exchange, optional ISIN and aliases; internal ids remain permanent readable slugs. | M6b-1 must verify that seeded data *belongs to the instrument we believe it does*, which is impossible for attributes never claimed. Doc 04 already specifies Exchange and names ISIN, so this implements the intended model. Aliases are included now because the seed's shape is cheap to change at 15–20 instruments and expensive at 500. Next id: ED-018. |

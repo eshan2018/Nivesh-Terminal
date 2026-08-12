@@ -3,7 +3,7 @@
 **Hand-off brief for any new session. Read this first, then the linked docs.**
 **This is the single authoritative hand-off document.** There is no separate product-context
 file; product intent lives in §2 below.
-Last updated: 2026-07-30 · `main` @ M6b-2 · reference state: tag `v0.3-walking-skeleton-complete`
+Last updated: 2026-08-12 · `main` @ M6c · reference state: tag `v0.3-walking-skeleton-complete`
 
 ---
 
@@ -29,7 +29,7 @@ migration to reverse. Next id: **ADR-0021, still unused.** Nine milestones were 
 without spending one; that is evidence the architecture was sufficient, and the bar for the
 first one should stay high.
 
-**Implementation choices remain Engineering Decisions** (next id: **ED-020**) and do not
+**Implementation choices remain Engineering Decisions** (next id: **ED-022**) and do not
 need an ADR. The distinction and its litmus are in
 [doc 01](implementation/01-engineering-decisions.md); when in doubt, classify before writing
 code, not after.
@@ -45,14 +45,14 @@ code, not after.
 ```
 Phase                  **Phase 1 IN PROGRESS** — Portfolio Intelligence
                        (Phase 0.5 remains COMPLETE and FROZEN — see §0)
-Last milestone         M6b-2 — first live ingestion at scale; real numbers end to end
-Next milestone         M6c — POST /v1/portfolio/analysis + the portfolio pane
+Last milestone         M6c — first deterministic judgement, served and rendered
+Next milestone         M7 — diversification (correlation + frontier) — not started
 Current branch         main
 Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
                        v0.2-compute-slice           (L6–L7, compute half)
                        v0.3-walking-skeleton-complete (Phase 0.5 closed)
-Tests                  359 passing
+Tests                  422 passing
 Runtime dependencies   1 direct · 9 transitive  (see §5 — "0 dependencies" ended
                        at M4a; L1–L7 remain stdlib-only)
 CI                     ACTIVE — guardrails + ruff + pytest on every push/PR
@@ -90,7 +90,12 @@ Phase 1 · Portfolio Intelligence (stateless — no accounts, no persistence)
                      execution outcomes (ED-019); evidence in
                      docs/implementation/07-ingestion-at-scale.md.
                      Two live-only defects found and fixed — see §10 item 6
-□ M6c  Serve        POST /v1/portfolio/analysis + the portfolio pane
+✓ M6c  Judgement    POST /v1/portfolio/analysis + the portfolio pane. The platform's
+                     FIRST deterministic judgement: portfolio realized volatility vs the
+                     Nifty 50 (`portfolio-volatility-vs-reference/v1`, ED-021), answer-first
+                     in the UI. The compensation judgement was dropped on empirical
+                     evidence — 99.8% inconclusive over 411 real portfolios — see the
+                     methodology catalog.
 □ M7   Diversification  correlation matrix + efficient frontier (second investor question)
 ```
 
@@ -356,7 +361,7 @@ How decisions get made here, recorded because it is easy to lose and expensive t
 4. **Do not make architectural assumptions.** When a decision is genuinely the user's, present
    2–3 options with trade-offs plus a recommendation, then wait.
 5. **Architectural change → ADR** (`docs/architecture/18-…`; next id **ADR-0021**, unused).
-   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-020**).
+   **Implementation choice → Engineering Decision** (`docs/implementation/01-…`; next id **ED-022**).
    *Threshold:* does it change architecture, boundaries, public contracts, maintainability or
    deployment model, or require a **migration** if reversed? If not, it is an ED.
 
@@ -432,7 +437,7 @@ docs/
     06-universe-verification.md    identity evidence — regenerate, don't hand-edit
     07-ingestion-at-scale.md       the first real ingestion run (M6b-2)
 
-backend/                      the layered app (359 tests)
+backend/                      the layered app (422 tests)
   platform/                   kernel: InstrumentId
   providers/ports/            PriceHistoryPort, error taxonomy
   providers/yfinance/         the ONLY place vendor code may appear; symbology.json

@@ -23,6 +23,7 @@ from backend.domain.model.observations import (
     QuarantineRecord,
 )
 from backend.domain.model.quantities import Currency, IndexLevel, Money
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.platform.identifiers import InstrumentId
 
 APPLE = InstrumentId("apple")
@@ -33,6 +34,7 @@ PROVENANCE = Provenance(
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
     reference_version="skeleton-reference/v1",
+    validation_version=VALIDATION_VERSION,
 )
 
 

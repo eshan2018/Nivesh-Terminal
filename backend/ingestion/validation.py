@@ -29,6 +29,23 @@ from datetime import datetime
 from backend.domain.model.instruments import InstrumentReference, InstrumentType
 from backend.providers.ports.price_history import RawBar, RawPriceResponse
 
+#: The identity of THIS rule set (doc 05 / doc 07: lineage must answer which policy
+#: snapshot produced a fact).
+#:
+#: **Bump this whenever a rule changes what passes.** The M6b-2 NaN fix is the worked
+#: example: the same raw payload replayed to an accepted observation before the fix and
+#: a quarantined one after, while every recorded version stayed identical — so two runs
+#: over the same raw object produced different canonical data and nothing said why.
+#:
+#: The version is *stamped by the gate onto its own outcome*, never supplied by a
+#: caller, so a run cannot claim a rule set it did not execute.
+#:
+#: This records identity; it does not reproduce historical behaviour. A replay always
+#: applies today's rules and says so. Honouring a superseded rule set would need a
+#: versioned rule registry and would change what ADR-0017's bit-reproducible tier
+#: claims — a decision deliberately not taken here (ED-020).
+VALIDATION_VERSION = "price-validation/v1"
+
 # Soft quality flags (travel with accepted data).
 FLAG_STALE_SERIES = "stale-series"
 FLAG_UNEXPLAINED_JUMP = "unexplained-jump"
@@ -59,6 +76,9 @@ class ValidationOutcome:
     accepted: tuple[ValidatedBar, ...]
     quarantined: tuple[QuarantinedBar, ...]
     series_flags: tuple[str, ...]
+    #: Which rule set produced this verdict. Defaulted to the current version because
+    #: the gate is the only thing that constructs an outcome legitimately.
+    validation_version: str = VALIDATION_VERSION
 
 
 def validate_price_history(
@@ -99,6 +119,7 @@ def validate_price_history(
         accepted=tuple(accepted),
         quarantined=tuple(quarantined),
         series_flags=series_flags,
+        validation_version=VALIDATION_VERSION,
     )
 
 

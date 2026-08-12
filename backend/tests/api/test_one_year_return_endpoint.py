@@ -27,6 +27,7 @@ from backend.domain.model.instruments import REFERENCE_VERSION
 from backend.domain.model.observations import AuthorityTier, PriceObservation, Provenance
 from backend.domain.model.quantities import Currency, Money
 from backend.features.returns import close_price_series_provider
+from backend.ingestion.validation import VALIDATION_VERSION
 from backend.platform.identifiers import InstrumentId
 
 RELIANCE = InstrumentId("reliance")
@@ -38,6 +39,7 @@ PROVENANCE = Provenance(
     provider="yfinance",
     raw_contract_version="yfinance-ohlcv/v1",
     reference_version=REFERENCE_VERSION,
+    validation_version=VALIDATION_VERSION,
 )
 
 

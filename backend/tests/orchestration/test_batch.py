@@ -235,3 +235,16 @@ def test_lineage_is_not_lost_when_the_manifest_is_discarded(
     assert stored
     assert {o.provenance.raw_object_key for o in stored} == {manifest.results[0].raw_object_key}
     assert all(o.provenance.reference_version == manifest.reference_version for o in stored)
+
+
+def test_the_manifest_pins_both_policy_versions(repository, tmp_path: Path) -> None:
+    """A run artifact that named one policy version and not the other would make an
+    incomplete claim about what produced it (ED-020)."""
+    import json
+
+    from backend.ingestion.validation import VALIDATION_VERSION
+
+    document = json.loads(_run(FakeProvider({"reliance": 5}), repository, tmp_path).to_json())
+
+    assert document["reference_version"] == "instrument-reference/v2"
+    assert document["validation_version"] == VALIDATION_VERSION

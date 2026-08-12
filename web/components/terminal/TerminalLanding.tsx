@@ -6,6 +6,7 @@ import "./terminal.css";
 import {
   MarketWatchPane, TrendPane, SysInfoPane, ModulesPane,
   ManifestoPane, RiskPane, QuickstartPane, LaunchPane, LiveMetricPane,
+  PortfolioVolatilityPane,
 } from "./Panes";
 
 /* ---------------- boot sequence ---------------- */
@@ -205,6 +206,7 @@ export default function TerminalLanding() {
         <MarketWatchPane />
         {/* Sits beside the snapshot panes, reading the real backend (ADR-0020). */}
         <LiveMetricPane />
+        <PortfolioVolatilityPane />
         <TrendPane />
         <SysInfoPane />
         <ModulesPane />
