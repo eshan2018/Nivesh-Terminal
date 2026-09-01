@@ -46,7 +46,7 @@ code, not after.
 Phase                  **Phase 1 IN PROGRESS** — Portfolio Intelligence
                        (Phase 0.5 remains COMPLETE and FROZEN — see §0)
 Last milestone         M6c — first deterministic judgement, served and rendered
-Next milestone         M7 — diversification (correlation + frontier) — not started
+Next milestone         none approved — M7 CLOSED with no product surface (gate G4 failed)
 Current branch         main
 Reference state        tag `v0.3-walking-skeleton-complete` (see §0)
 Checkpoint tags        v0.1-walking-skeleton        (L1–L5, ingest half)
@@ -96,7 +96,15 @@ Phase 1 · Portfolio Intelligence (stateless — no accounts, no persistence)
                      in the UI. The compensation judgement was dropped on empirical
                      evidence — 99.8% inconclusive over 411 real portfolios — see the
                      methodology catalog.
-□ M7   Diversification  correlation matrix + efficient frontier (second investor question)
+✗ M7   Co-movement    CLOSED 2026-08-30 with NO product surface. The gating study passed
+                     G1/G2/G3 but failed G4: the only viable reference frame was the
+                     platform's own coverage list, which moves ~30% under reasonable
+                     redefinition. Direction robust (0% reversals), decisiveness not.
+                     Efficient frontier dropped separately — needs expected returns,
+                     unestimable here per M6c, and its output is advice (doc 14).
+                     Evidence: docs/implementation/08-m7-gating-study.json
+                     Harness:  tools/diversification_study.py (make diversification-study)
+                     N_eff retained as a RESEARCH FINDING only — not a product judgement.
 ```
 
 > ✅ **Phase 0.5 (Walking Skeleton) is COMPLETE** — all 9 of its milestones, 9 of 10 layers.

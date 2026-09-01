@@ -360,9 +360,121 @@ not advice") and the raw material for the explainability "why?" panel.
   the return comparison is not. Revisit condition, computable rather than vague: decidable
   at roughly `T ≥ (1.96/|Sharpe|)²` years — ~73 years at the observed median.
 
+## Considered and not built
+
+### Efficient frontier — dropped from M7 (2026-08-30)
+
+- **Investor question it claimed to serve:** *"Could my portfolio be arranged better?"*
+- **Status:** **not built, and not deferred pending effort.** Dropped on evidence, before
+  any implementation, by founder decision during M7 planning.
+- **Why.** A mean-variance frontier is constructed from **expected returns** — first
+  moments. M6c established empirically, on this platform's own data, that first moments
+  are not estimable here: the compensation judgement was `INCONCLUSIVE` in 99.8% of 411
+  real portfolios, median |t| = 0.23, decidable only at roughly `T ≥ (1.96/|Sharpe|)²`
+  years — about 73 years at the observed median. Mean-variance optimization does not
+  escape that estimation error; it is maximally sensitive to it, and would place a
+  portfolio on a curve to four significant figures using inputs indistinguishable from
+  noise. It is the compensation judgement in a more persuasive costume.
+- **And its output is a recommendation.** A frontier that says "you are here, the optimal
+  portfolio is there" is an individualized allocation recommendation whatever the
+  disclaimer beneath it says. Doc 14: *"The no-advice boundary is architectural."* This is
+  a compliance boundary, not a presentation preference.
+- **What would change this.** Two independent conditions, both required: (1) an expected-
+  return input whose estimation error is small enough to order portfolios — a longer
+  history does not achieve this at equity Sharpe ratios, so this means a different input
+  class, not more of the same data; and (2) an explicit compliance decision, with counsel,
+  on whether a normative portfolio construction may be shown at all. A **minimum-variance**
+  construction clears (1) — it uses only the covariance matrix — but not (2).
+- **Recorded here rather than dropped silently** so the reasoning outlives the decision,
+  as the compensation judgement's did. The roadmap item that proposed it
+  (`M7 — correlation matrix + efficient frontier`) predates the M6c evidence.
+
+### Portfolio co-movement verdict — not built, gate G4 failed (2026-08-30)
+
+- **Investor question it would have served:** *"How independently have the holdings in
+  this portfolio behaved?"*
+- **Status:** **not built.** The M7 gating study ran, three of four pre-registered gates
+  passed, and the milestone was closed with no product surface by founder decision.
+- **Evidence:** `docs/implementation/08-m7-gating-study.json`, reproducible via
+  `make diversification-study` (`tools/diversification_study.py`, fixed seed; two runs
+  byte-identical). 18 eligible holdings, 247 common trading days
+  (2025-08-12 → 2026-08-10), 1,653 portfolios of sizes 2–6 and 8, 1,000 moving-block
+  bootstrap replicates. The study's portfolio volatility agrees with
+  `portfolio-risk-return/v1` to 1.6e-16, so its arithmetic is not a private
+  reimplementation that drifted.
+
+**What passed.**
+- The signal is real: average pairwise correlation at k=4 spans 0.081 … 0.658, and
+  `N_eff/k` falls from 0.75 (k=2) to 0.31 (k=8). Unlike the compensation judgement, this
+  is not a constant.
+- **G3 (sanity)** passed decisively: four banks ρ̄ = 0.527 (`N_eff` 1.55 of 4) against a
+  deliberately spread portfolio ρ̄ = 0.114 (`N_eff` 3.00 of 4), difference 95% CI
+  [0.268, 0.526].
+- Frame (b), comparing a portfolio against the universe's mean pairwise correlation, met
+  **G1** (61.5% decisive at 95%) and **G2** (largest single verdict 38.5%), degrading
+  gracefully across 90/95/99% confidence.
+
+**What failed, and why it is the whole finding.**
+- Frame (a), testing against an independence null, failed **G2** at 98.4% — equities
+  correlate, so "are these independent?" answers *no* almost always. A constant with a
+  verdict's vocabulary; the compensation failure mode with the sign flipped.
+- Frame (b) failed **G4**. Its reference — "the market" — is operationalised as the mean
+  pairwise correlation of *the securities this platform happens to cover*.
+
+  **G4 carried no pre-registered numeric threshold.** Unlike G1 (40% decisive) and G2
+  (85% single-verdict ceiling), it was stated qualitatively — *the comparison must not
+  rest on a band we invented* — and was decided on the reference-stability evidence
+  produced by the universe-perturbation probe. No threshold was assigned to it
+  retroactively, and none should be read into the figures below.
+
+  That probe recomputes each verdict under five definitions of the eligible universe.
+  Perturbing the list moves the reference from 0.266 to 0.369 (spread 0.103, ~30% of its
+  value). **Measured on the probe's own 200 four-holding portfolios** — not across the
+  full 1,653-portfolio sample — up to 41.5% of verdicts change, while **0% reverse
+  direction** under any perturbation. So direction is robust and decisiveness is not: the
+  same unchanged portfolio would gain or lose its verdict because *we* changed coverage.
+  M6c's reference frame (the Nifty 50) is externally defined and publicly known; this one
+  is an implementation detail, and disclosing it would not make it stable.
+- Frame (b) would have made the milestone shippable, which is precisely why the gate was
+  pre-registered. It was not overruled.
+
+**Research finding, retained as such.** `N_eff` (`D²`, the co-movement-adjusted holdings
+count) is well estimated on this evidence: median 95% interval width 0.359 relative to the
+estimate, with only 4.3% of portfolios wider than half the estimate. Its anchor is
+definitional — `N_eff = k` exactly when holdings are uncorrelated, and `k` is a fact about
+the investor's own portfolio rather than a list we chose. **This is a research quantity,
+not a product judgement**, and it carries two standing constraints: it is not to be given
+a product-facing label, and it must never be presented as corroborated by average pairwise
+correlation — under equal weights `D² = k/(1 + (k−1)ρ̄)` is an identity, so the two are one
+number written twice and an identity corroborates nothing.
+
+**Limits of the finding.** One market, one regime, one 247-day window; an 18-instrument
+universe in which 5 of 15 equities are banks; equal weights only. Correlations are
+regime-dependent, and nothing here establishes that these numbers hold elsewhere.
+
+**Deferred against this harness (PR #6 review, 2026-08-30).** Two known gaps, recorded
+rather than fixed, because this milestone ships nothing:
+
+- **The gate-decision path is untested.** `verdict_from`, `decisive_rate`, `largest_share`
+  and `FrameOutcome.gates()` have no coverage; the nine committed tests pin the statistics
+  beneath them, not the conversion of a statistic into PASS/FAIL. Tolerable here because
+  the outcome was *do not build*, and any defect in that path would have to make results
+  look worse to matter — the conservative direction. **Closing condition: this path must
+  be tested before the harness is ever used to justify shipping anything.**
+- **Block length 10 has no sensitivity study.** The bootstrap's interval widths, and hence
+  the G1/G2 decisive rates, depend on it. The G4 finding does not — reference point
+  estimates move, not intervals — so the conclusion stands as recorded.
+
+**What would reopen it.** A reference frame that is externally defined and stable under
+coverage growth — the condition frame (b) fails. Whether the descriptive `N_eff` statement
+is legible enough to be a product is a separate, unanswered question: the study can
+measure estimability and cannot measure comprehension. No legibility study is authorised.
+
 ## Change log
 | Date | Change |
 |------|--------|
+| 2026-08-30 | **Portfolio co-movement verdict recorded as not-built** — M7's gating study passed G1/G2/G3 but failed G4: the only viable reference frame was the platform's own coverage list, which moves ~30% under reasonable redefinition. Direction was robust (0% reversals), decisiveness was not. `N_eff` retained as a research finding only. Evidence: `08-m7-gating-study.json`. |
+| 2026-08-30 | **Efficient frontier recorded as considered-and-not-built** during M7 planning. It requires expected returns, which M6c proved are not estimable on this data, and its output is a normative recommendation (doc 14). No code was written for it. |
 | 2026-08-12 | **`aligned_reference_return_series/v1` and `portfolio-volatility-vs-reference/v1` added** during M6c — the platform's first deterministic judgement. The compensation judgement it replaced was dropped on empirical evidence (99.8% inconclusive over 411 real portfolios), recorded in the entry so the reasoning outlives the decision. |
 | 2026-07-17 | Catalog established (M1, Phase 0 convention). No entries yet; first entry lands in M3. |
 | 2026-07-18 | **First entries authored (M3):** `close_price_series · v1` (L6, the C3 seam) and `one-year-total-return · v1` (L7). Golden-master seeding record added after property + parity tests passed. |

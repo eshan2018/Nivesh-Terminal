@@ -38,3 +38,6 @@ ingest:  ## LIVE: ingest the seeded universe; writes a run manifest, non-zero on
 verify-universe:  ## LIVE: check seeded identity against the provider; writes the evidence report.
 	@echo "Calls the live provider. Needs the 'live' extra; never run in CI."
 	$(PY) -m tools.verify_universe
+
+diversification-study:  ## M7 gating study: is a co-movement judgement viable on this evidence?
+	$(PY) -m tools.diversification_study
