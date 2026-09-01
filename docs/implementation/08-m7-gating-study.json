@@ -1,0 +1,847 @@
+{
+  "generated_at": "2026-09-01T18:41:33.503409+00:00",
+  "seed": 20260830,
+  "replicates": 1000,
+  "block_length": 10,
+  "instruments": [
+    "axis-bank",
+    "bajaj-finance",
+    "bajaj-finserv",
+    "bharti-airtel",
+    "hdfc-bank",
+    "hindustan-unilever",
+    "icici-bank",
+    "infosys",
+    "itc",
+    "kotak-mahindra-bank",
+    "larsen-toubro",
+    "maruti-suzuki",
+    "nippon-bank-bees",
+    "nippon-gold-bees",
+    "nippon-nifty-bees",
+    "reliance",
+    "state-bank-of-india",
+    "tcs"
+  ],
+  "common_observations": 247,
+  "window": [
+    "2025-08-12",
+    "2026-08-10"
+  ],
+  "quality_flags": [
+    "window-shortened-by-alignment"
+  ],
+  "per_instrument_observations": {
+    "axis-bank": 248,
+    "bajaj-finance": 248,
+    "bajaj-finserv": 248,
+    "bharti-airtel": 248,
+    "hdfc-bank": 248,
+    "hindustan-unilever": 248,
+    "icici-bank": 248,
+    "infosys": 248,
+    "itc": 248,
+    "kotak-mahindra-bank": 248,
+    "larsen-toubro": 248,
+    "maruti-suzuki": 248,
+    "nippon-bank-bees": 247,
+    "nippon-gold-bees": 247,
+    "nippon-nifty-bees": 247,
+    "reliance": 248,
+    "state-bank-of-india": 248,
+    "tcs": 248
+  },
+  "universe_mean_correlation": 0.3441,
+  "spread": {
+    "by_size": {
+      "2": {
+        "sampled": 153,
+        "population": 153,
+        "mean_correlation": {
+          "min": -0.0036,
+          "median": 0.3146,
+          "max": 0.9176,
+          "stdev": 0.1986
+        },
+        "n_eff": {
+          "min": 1.042,
+          "median": 1.507,
+          "max": 1.997,
+          "as_share_of_holdings": 0.753
+        },
+        "diversification_ratio_median": 1.2274,
+        "median_relative_interval_width": 0.212,
+        "frames": {
+          "90%": {
+            "a_independence": {
+              "decisive_rate": 0.9085,
+              "largest_single_verdict_share": 0.9085,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 139,
+                "NOT_DISTINGUISHABLE": 14
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6601,
+              "largest_single_verdict_share": 0.366,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 56,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 45,
+                "NOT_DISTINGUISHABLE": 52
+              }
+            }
+          },
+          "95%": {
+            "a_independence": {
+              "decisive_rate": 0.8627,
+              "largest_single_verdict_share": 0.8627,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 132,
+                "NOT_DISTINGUISHABLE": 21
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.5817,
+              "largest_single_verdict_share": 0.4183,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 50,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 39,
+                "NOT_DISTINGUISHABLE": 64
+              }
+            }
+          },
+          "99%": {
+            "a_independence": {
+              "decisive_rate": 0.7516,
+              "largest_single_verdict_share": 0.7516,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 115,
+                "NOT_DISTINGUISHABLE": 38
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.4183,
+              "largest_single_verdict_share": 0.5817,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 35,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 29,
+                "NOT_DISTINGUISHABLE": 89
+              }
+            }
+          }
+        }
+      },
+      "3": {
+        "sampled": 300,
+        "population": 816,
+        "mean_correlation": {
+          "min": 0.056,
+          "median": 0.3184,
+          "max": 0.7623,
+          "stdev": 0.1417
+        },
+        "n_eff": {
+          "min": 1.198,
+          "median": 1.825,
+          "max": 2.682,
+          "as_share_of_holdings": 0.608
+        },
+        "diversification_ratio_median": 1.3511,
+        "median_relative_interval_width": 0.292,
+        "frames": {
+          "90%": {
+            "a_independence": {
+              "decisive_rate": 0.9867,
+              "largest_single_verdict_share": 0.9867,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 296,
+                "NOT_DISTINGUISHABLE": 4
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6133,
+              "largest_single_verdict_share": 0.3867,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 104,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 80,
+                "NOT_DISTINGUISHABLE": 116
+              }
+            }
+          },
+          "95%": {
+            "a_independence": {
+              "decisive_rate": 0.9833,
+              "largest_single_verdict_share": 0.9833,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 295,
+                "NOT_DISTINGUISHABLE": 5
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.5533,
+              "largest_single_verdict_share": 0.4467,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 95,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 71,
+                "NOT_DISTINGUISHABLE": 134
+              }
+            }
+          },
+          "99%": {
+            "a_independence": {
+              "decisive_rate": 0.9567,
+              "largest_single_verdict_share": 0.9567,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 287,
+                "NOT_DISTINGUISHABLE": 13
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.4467,
+              "largest_single_verdict_share": 0.5533,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 74,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 60,
+                "NOT_DISTINGUISHABLE": 166
+              }
+            }
+          }
+        }
+      },
+      "4": {
+        "sampled": 300,
+        "population": 3060,
+        "mean_correlation": {
+          "min": 0.0809,
+          "median": 0.3349,
+          "max": 0.6583,
+          "stdev": 0.1219
+        },
+        "n_eff": {
+          "min": 1.39,
+          "median": 2.016,
+          "max": 3.158,
+          "as_share_of_holdings": 0.504
+        },
+        "diversification_ratio_median": 1.4198,
+        "median_relative_interval_width": 0.338,
+        "frames": {
+          "90%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6767,
+              "largest_single_verdict_share": 0.3567,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 107,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 96,
+                "NOT_DISTINGUISHABLE": 97
+              }
+            }
+          },
+          "95%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6367,
+              "largest_single_verdict_share": 0.3633,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 104,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 87,
+                "NOT_DISTINGUISHABLE": 109
+              }
+            }
+          },
+          "99%": {
+            "a_independence": {
+              "decisive_rate": 0.99,
+              "largest_single_verdict_share": 0.99,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 297,
+                "NOT_DISTINGUISHABLE": 3
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.5433,
+              "largest_single_verdict_share": 0.4567,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 89,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 74,
+                "NOT_DISTINGUISHABLE": 137
+              }
+            }
+          }
+        }
+      },
+      "5": {
+        "sampled": 300,
+        "population": 8568,
+        "mean_correlation": {
+          "min": 0.1123,
+          "median": 0.3245,
+          "max": 0.6789,
+          "stdev": 0.1
+        },
+        "n_eff": {
+          "min": 1.402,
+          "median": 2.217,
+          "max": 3.456,
+          "as_share_of_holdings": 0.443
+        },
+        "diversification_ratio_median": 1.4888,
+        "median_relative_interval_width": 0.378,
+        "frames": {
+          "90%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6767,
+              "largest_single_verdict_share": 0.3967,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 119,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 84,
+                "NOT_DISTINGUISHABLE": 97
+              }
+            }
+          },
+          "95%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6267,
+              "largest_single_verdict_share": 0.3733,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 110,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 78,
+                "NOT_DISTINGUISHABLE": 112
+              }
+            }
+          },
+          "99%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.5333,
+              "largest_single_verdict_share": 0.4667,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 92,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 68,
+                "NOT_DISTINGUISHABLE": 140
+              }
+            }
+          }
+        }
+      },
+      "6": {
+        "sampled": 300,
+        "population": 18564,
+        "mean_correlation": {
+          "min": 0.164,
+          "median": 0.3362,
+          "max": 0.6141,
+          "stdev": 0.0891
+        },
+        "n_eff": {
+          "min": 1.529,
+          "median": 2.319,
+          "max": 3.353,
+          "as_share_of_holdings": 0.386
+        },
+        "diversification_ratio_median": 1.5228,
+        "median_relative_interval_width": 0.417,
+        "frames": {
+          "90%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6967,
+              "largest_single_verdict_share": 0.3767,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 113,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 96,
+                "NOT_DISTINGUISHABLE": 91
+              }
+            }
+          },
+          "95%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6433,
+              "largest_single_verdict_share": 0.3567,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 105,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 88,
+                "NOT_DISTINGUISHABLE": 107
+              }
+            }
+          },
+          "99%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.5133,
+              "largest_single_verdict_share": 0.4867,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 85,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 69,
+                "NOT_DISTINGUISHABLE": 146
+              }
+            }
+          }
+        }
+      },
+      "8": {
+        "sampled": 300,
+        "population": 43758,
+        "mean_correlation": {
+          "min": 0.1995,
+          "median": 0.3438,
+          "max": 0.6008,
+          "stdev": 0.0692
+        },
+        "n_eff": {
+          "min": 1.591,
+          "median": 2.467,
+          "max": 3.412,
+          "as_share_of_holdings": 0.308
+        },
+        "diversification_ratio_median": 1.5707,
+        "median_relative_interval_width": 0.436,
+        "frames": {
+          "90%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.6767,
+              "largest_single_verdict_share": 0.34,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 102,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 101,
+                "NOT_DISTINGUISHABLE": 97
+              }
+            }
+          },
+          "95%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.63,
+              "largest_single_verdict_share": 0.37,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 93,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 96,
+                "NOT_DISTINGUISHABLE": 111
+              }
+            }
+          },
+          "99%": {
+            "a_independence": {
+              "decisive_rate": 1.0,
+              "largest_single_verdict_share": 1.0,
+              "G1_pass": true,
+              "G2_pass": false,
+              "verdicts": {
+                "DID_NOT_BEHAVE_INDEPENDENTLY": 300
+              }
+            },
+            "b_universe_relative": {
+              "decisive_rate": 0.53,
+              "largest_single_verdict_share": 0.47,
+              "G1_pass": true,
+              "G2_pass": true,
+              "verdicts": {
+                "LESS_CO_MOVEMENT_THAN_THE_MARKET": 84,
+                "MORE_CO_MOVEMENT_THAN_THE_MARKET": 75,
+                "NOT_DISTINGUISHABLE": 141
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "frames": {
+    "90%": {
+      "a_independence": {
+        "decisive_rate": 0.9891,
+        "largest_single_verdict_share": 0.9891,
+        "G1_pass": true,
+        "G2_pass": false,
+        "verdicts": {
+          "DID_NOT_BEHAVE_INDEPENDENTLY": 1635,
+          "NOT_DISTINGUISHABLE": 18
+        }
+      },
+      "b_universe_relative": {
+        "decisive_rate": 0.6673,
+        "largest_single_verdict_share": 0.3636,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 601,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 502,
+          "NOT_DISTINGUISHABLE": 550
+        }
+      }
+    },
+    "95%": {
+      "a_independence": {
+        "decisive_rate": 0.9843,
+        "largest_single_verdict_share": 0.9843,
+        "G1_pass": true,
+        "G2_pass": false,
+        "verdicts": {
+          "DID_NOT_BEHAVE_INDEPENDENTLY": 1627,
+          "NOT_DISTINGUISHABLE": 26
+        }
+      },
+      "b_universe_relative": {
+        "decisive_rate": 0.6146,
+        "largest_single_verdict_share": 0.3854,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 557,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 459,
+          "NOT_DISTINGUISHABLE": 637
+        }
+      }
+    },
+    "99%": {
+      "a_independence": {
+        "decisive_rate": 0.9673,
+        "largest_single_verdict_share": 0.9673,
+        "G1_pass": true,
+        "G2_pass": false,
+        "verdicts": {
+          "DID_NOT_BEHAVE_INDEPENDENTLY": 1599,
+          "NOT_DISTINGUISHABLE": 54
+        }
+      },
+      "b_universe_relative": {
+        "decisive_rate": 0.5045,
+        "largest_single_verdict_share": 0.4955,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 459,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 375,
+          "NOT_DISTINGUISHABLE": 819
+        }
+      }
+    }
+  },
+  "gold_sensitivity": {
+    "90%": {
+      "with_gold": {
+        "decisive_rate": 0.7159,
+        "largest_single_verdict_share": 0.6167,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 280,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 45,
+          "NOT_DISTINGUISHABLE": 129
+        }
+      },
+      "without_gold": {
+        "decisive_rate": 0.6489,
+        "largest_single_verdict_share": 0.3812,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 321,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 457,
+          "NOT_DISTINGUISHABLE": 421
+        }
+      }
+    },
+    "95%": {
+      "with_gold": {
+        "decisive_rate": 0.6894,
+        "largest_single_verdict_share": 0.5947,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 270,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 43,
+          "NOT_DISTINGUISHABLE": 141
+        }
+      },
+      "without_gold": {
+        "decisive_rate": 0.5863,
+        "largest_single_verdict_share": 0.4137,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 287,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 416,
+          "NOT_DISTINGUISHABLE": 496
+        }
+      }
+    },
+    "99%": {
+      "with_gold": {
+        "decisive_rate": 0.5617,
+        "largest_single_verdict_share": 0.5154,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 234,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 21,
+          "NOT_DISTINGUISHABLE": 199
+        }
+      },
+      "without_gold": {
+        "decisive_rate": 0.4829,
+        "largest_single_verdict_share": 0.5171,
+        "G1_pass": true,
+        "G2_pass": true,
+        "verdicts": {
+          "LESS_CO_MOVEMENT_THAN_THE_MARKET": 225,
+          "MORE_CO_MOVEMENT_THAN_THE_MARKET": 354,
+          "NOT_DISTINGUISHABLE": 620
+        }
+      }
+    }
+  },
+  "descriptive_interval": {
+    "median_relative_width_of_n_eff_ci": 0.359,
+    "share_wider_than_half_the_estimate": 0.043
+  },
+  "G3_sanity_case": {
+    "bank_portfolio": [
+      "axis-bank",
+      "hdfc-bank",
+      "icici-bank",
+      "kotak-mahindra-bank"
+    ],
+    "spread_portfolio": [
+      "nippon-gold-bees",
+      "hindustan-unilever",
+      "infosys",
+      "reliance"
+    ],
+    "bank_mean_correlation": 0.5273,
+    "spread_mean_correlation": 0.1137,
+    "bank_n_eff": 1.545,
+    "spread_n_eff": 2.996,
+    "difference_ci": [
+      0.268,
+      0.5259
+    ],
+    "G3_pass": true
+  },
+  "alignment": {
+    "common_grid_observations": 247,
+    "longest_single_instrument": 248,
+    "shortest_single_instrument": 247,
+    "days_lost_to_full_universe_alignment": 1,
+    "min_overlap_threshold": 50,
+    "portfolios_below_threshold_on_common_grid": 0
+  },
+  "G4_reference_stability": {
+    "probe_portfolios": 200,
+    "reference_by_universe": {
+      "full_18": 0.3441,
+      "no_banks": 0.2791,
+      "no_etfs": 0.312,
+      "no_gold": 0.3692,
+      "equities_only_ex_banks": 0.2663
+    },
+    "reference_spread": 0.1029,
+    "flips": {
+      "no_banks": {
+        "reference_mean_correlation": 0.2791,
+        "verdicts_changed": 69,
+        "verdicts_reversed": 0,
+        "changed_share": 0.345,
+        "reversed_share": 0.0
+      },
+      "no_etfs": {
+        "reference_mean_correlation": 0.312,
+        "verdicts_changed": 36,
+        "verdicts_reversed": 0,
+        "changed_share": 0.18,
+        "reversed_share": 0.0
+      },
+      "no_gold": {
+        "reference_mean_correlation": 0.3692,
+        "verdicts_changed": 33,
+        "verdicts_reversed": 0,
+        "changed_share": 0.165,
+        "reversed_share": 0.0
+      },
+      "equities_only_ex_banks": {
+        "reference_mean_correlation": 0.2663,
+        "verdicts_changed": 83,
+        "verdicts_reversed": 0,
+        "changed_share": 0.415,
+        "reversed_share": 0.0
+      }
+    },
+    "worst_reversed_share": 0.0,
+    "worst_changed_share": 0.415
+  },
+  "cross_engine_check": {
+    "cases": [
+      {
+        "portfolio": [
+          "axis-bank",
+          "hdfc-bank",
+          "icici-bank",
+          "kotak-mahindra-bank"
+        ],
+        "study": 0.17027919,
+        "engine": 0.17027919,
+        "relative_difference": 1.6300039470308635e-16
+      },
+      {
+        "portfolio": [
+          "nippon-gold-bees",
+          "hindustan-unilever",
+          "infosys",
+          "reliance"
+        ],
+        "study": 0.15085236,
+        "engine": 0.15085236,
+        "relative_difference": 0.0
+      },
+      {
+        "portfolio": [
+          "axis-bank",
+          "bajaj-finance",
+          "bajaj-finserv",
+          "bharti-airtel",
+          "hdfc-bank",
+          "hindustan-unilever"
+        ],
+        "study": 0.16612407,
+        "engine": 0.16612407,
+        "relative_difference": 0.0
+      }
+    ],
+    "worst_relative_difference": 1.6300039470308635e-16,
+    "agrees": true
+  },
+  "note_on_eigenvalues": "N_eff is reported from D^2 throughout. The eigenvalue route was not used: with ~250 observations the smallest eigenvalues of an 8x8 correlation matrix are systematically understated, which biases a spectrum-based N_eff upward in exactly the concentrated portfolios the judgement exists to detect."
+}
